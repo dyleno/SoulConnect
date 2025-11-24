@@ -40,7 +40,7 @@ export default {
   justify-content: center;
   align-items: center;
   text-align: center;
-  position: fixed; /* belangrijk */
+  position: fixed; 
   top: 0;
   left: 0;
   margin: 0;
