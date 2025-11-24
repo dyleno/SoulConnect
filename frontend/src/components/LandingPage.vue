@@ -6,6 +6,9 @@
       <p class="subtitle slide-up">
         Vind echte connecties die passen bij jouw vibe.
       </p>
+    
+
+    
 
       <div class="buttons fade-in-delayed">
         <router-link to="/login" class="btn primary">Inloggen</router-link>
