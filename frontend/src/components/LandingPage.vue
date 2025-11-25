@@ -6,6 +6,9 @@
       <p class="subtitle slide-up">
         Vind echte connecties die passen bij jouw vibe.
       </p>
+    
+
+    
 
       <div class="buttons fade-in-delayed">
         <router-link to="/login" class="btn primary">Inloggen</router-link>
@@ -40,7 +43,7 @@ export default {
   justify-content: center;
   align-items: center;
   text-align: center;
-  position: fixed; /* belangrijk */
+  position: fixed; 
   top: 0;
   left: 0;
   margin: 0;

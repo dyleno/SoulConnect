@@ -1,7 +1,5 @@
 <template>
   <section class="auth-container">
-
-    <!-- 🔥 Tinder-Style Header -->
     <header class="top-header" @click="$router.push('/')">
       <span class="logo">❤️ SoulConnect</span>
     </header>
@@ -11,37 +9,75 @@
 
       <form @submit.prevent="login">
         <input type="email" v-model="email" placeholder="Email" required />
-        <input type="password" v-model="password" placeholder="Wachtwoord" required />
+        <input
+          type="password"
+          v-model="password"
+          placeholder="Wachtwoord"
+          required
+        />
 
-        <button class="btn">Inloggen</button>
+        <button class="btn" :disabled="loading">
+          {{ loading ? "Bezig met inloggen..." : "Inloggen" }}
+        </button>
       </form>
+
+      <p v-if="errorMessage" class="error-text">
+        {{ errorMessage }}
+      </p>
 
       <p class="register-text">
         Nog geen account?
-        <router-link class="register-link" to="/register">Registreren</router-link>
+        <router-link class="register-link" to="/register">
+          Registreren
+        </router-link>
       </p>
     </div>
   </section>
 </template>
 
 <script>
+import axios from "axios";
+
 export default {
   data() {
     return {
       email: "",
       password: "",
+      errorMessage: "",
+      loading: false,
     };
   },
   methods: {
-    login() {
-      console.log("Login attempt", this.email, this.password);
+    async login() {
+      this.errorMessage = "";
+      this.loading = true;
+
+      try {
+        const response = await axios.post("http://localhost:3000/login", {
+          email: this.email,
+          password: this.password,
+        });
+
+        // User opslaan
+        localStorage.setItem("user", JSON.stringify(response.data.user));
+
+        // 👉 Na inloggen naar home
+        this.$router.push("/home");
+      } catch (err) {
+        console.error(err);
+        this.errorMessage =
+          err?.response?.data?.message ||
+          "Inloggen is mislukt. Controleer je gegevens.";
+      } finally {
+        this.loading = false;
+      }
     },
   },
 };
 </script>
 
+
 <style scoped>
-    
 .auth-container {
   display: flex;
   justify-content: center;
@@ -70,9 +106,8 @@ export default {
 
 .top-header:hover {
   transform: scale(1.05);
-  text-shadow: 0 0 15px rgba(255,255,255,0.6);
+  text-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
 }
-
 
 .auth-card {
   background: white;
@@ -91,7 +126,6 @@ h2 {
   font-weight: 800;
   margin-bottom: 25px;
 }
-
 
 input {
   width: 100%;
@@ -129,6 +163,12 @@ input:focus {
   box-shadow: 0 8px 25px rgba(255, 50, 90, 0.35);
 }
 
+/* Disabled state */
+.btn[disabled] {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .register-text {
   margin-top: 18px;
   font-size: 0.95rem;
@@ -151,13 +191,29 @@ input:focus {
   color: #ff1e5a !important;
 }
 
+.error-text {
+  margin-top: 12px;
+  color: #e63946;
+  font-size: 0.9rem;
+}
+
 @keyframes fadeIn {
-  0% { opacity: 0; transform: translateY(40px) scale(0.96); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
+  0% {
+    opacity: 0;
+    transform: translateY(40px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 @keyframes fadeInBackground {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
 }
 </style>
