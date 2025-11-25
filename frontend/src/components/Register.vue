@@ -1,6 +1,5 @@
 <template>
   <section class="auth-container">
-    <!-- 🔥 Tinder-Style Header -->
     <header class="top-header" @click="$router.push('/')">
       <span class="logo">❤️ SoulConnect</span>
     </header>
@@ -98,7 +97,7 @@ export default {
         this.successMessage =
           response.data?.message || "Account succesvol aangemaakt!";
 
-        // 👉 Na registreren naar home
+        
         this.$router.push("/home");
       } catch (err) {
         console.error(err);
@@ -114,9 +113,6 @@ export default {
 </script>
 
 <style scoped>
-/* ------------------------------------------------ */
-/* 🔥 Fullscreen Gradient Background */
-/* ------------------------------------------------ */
 .auth-container {
   display: flex;
   justify-content: center;

@@ -1,7 +1,7 @@
 <template>
   <section class="home">
     <!-- Top bar -->
-    <header class="top-bar">
+        <header class="top-bar">
       <div class="logo" @click="$router.push('/')">
         ❤️ SoulConnect
       </div>
