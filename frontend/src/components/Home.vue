@@ -1,21 +1,6 @@
 <template>
   <section class="home">
-    <!-- Top bar -->
-    <header class="top-bar">
-      <div class="logo" @click="$router.push('/')">
-        ❤️ SoulConnect
-      </div>
-
-      <div class="user-chip" v-if="user">
-        <span class="user-name">
-          {{ displayName }}
-          <span v-if="displayAge">• {{ displayAge }}</span>
-        </span>
-        <button class="logout-btn" @click="logout">Uitloggen</button>
-      </div>
-    </header>
-
-    <!-- Floating hearts -->
+    <!-- Floating hearts achter alles -->
     <div class="heart-animation">
       <span class="heart" style="left: 12%; animation-delay: 0s;">❤</span>
       <span class="heart" style="left: 30%; animation-delay: 1.5s;">❤</span>
@@ -24,63 +9,114 @@
       <span class="heart" style="left: 90%; animation-delay: 2.3s;">❤</span>
     </div>
 
-    <!-- Main content -->
-    <main class="main">
-      <!-- Profile card (Tinder style) -->
-      <div class="card">
-        <div class="card-gradient"></div>
+    
 
-        <div class="card-top">
-          <div class="avatar-circle">
-            <span class="avatar-initial">
+    <div class="app-shell">
+      <!-- Sidebar zoals wireframe -->
+      <aside class="sidebar">
+        <div class="sidebar-user">
+          <div class="sidebar-avatar">
+            <span class="sidebar-avatar-initial">
               {{ avatarInitial }}
             </span>
           </div>
-        </div>
-
-        <div class="card-info">
-          <h2 class="name-line">
-            {{ displayName }}
-            <span v-if="displayAge" class="age"> {{ displayAge }}</span>
-          </h2>
-          <p class="tagline">
-            Klaar om echte vibes te swipen 🔥
-          </p>
-
-          <div class="tags">
-            <span class="tag">✨ New here</span>
-            <span class="tag">💬 Open voor chat</span>
-            <span class="tag">❤️ SoulConnect member</span>
+          <div class="sidebar-user-text">
+            <div class="sidebar-user-name">Gebruiker</div>
+            <button class="sidebar-link">Bekijk profiel</button>
           </div>
         </div>
 
-        <div class="card-footer">
-          <div class="pill">
-            Ingelogd als
-            <span class="pill-email">{{ user?.email }}</span>
+        <nav class="nav">
+          <button class="nav-item active">
+            <span class="nav-icon">♡</span>
+            <span>Home</span>
+          </button>
+          <button class="nav-item">
+            <span class="nav-icon">💬</span>
+            <span>Berichten</span>
+          </button>
+          <button class="nav-item">
+            <span class="nav-icon">🔍</span>
+            <span>Zoeken</span>
+          </button>
+          <button class="nav-item">
+            <span class="nav-icon">⚙️</span>
+            <span>Instellingen</span>
+          </button>
+          <button class="nav-item">
+            <span class="nav-icon">★</span>
+            <span>Premium</span>
+          </button>
+        </nav>
+
+        <button class="logout-sidebar" @click="logout">
+          Uitloggen
+        </button>
+      </aside>
+
+      <!-- Hoofdcontent -->
+      <main class="content">
+        <header class="content-header">
+          Love starts here — SoulConnect
+        </header>
+
+        <section class="content-main">
+          <!-- Tinder-achtige kaart -->
+          <div class="card">
+            <div class="card-gradient"></div>
+
+            <div class="card-top">
+              <div class="avatar-circle">
+                <span class="avatar-initial">
+                  {{ avatarInitial }}
+                </span>
+              </div>
+            </div>
+
+            <div class="card-info">
+              <h2 class="name-line">
+                {{ displayName }}
+                <span v-if="displayAge" class="age">{{ displayAge }}</span>
+              </h2>
+              <p class="tagline">
+                Klaar om echte vibes te swipen 🔥
+              </p>
+
+              <div class="tags">
+                <span class="tag">✨ New here</span>
+                <span class="tag">💬 Open voor chat</span>
+                <span class="tag">❤️ SoulConnect member</span>
+              </div>
+            </div>
+
+            <div class="card-footer">
+              <div class="pill">
+                Ingelogd als
+                <span class="pill-email">{{ user?.email }}</span>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
 
-      <!-- Swipe buttons -->
-      <div class="swipe-controls">
-        <button class="circle-btn small">
-          ❌
-        </button>
-        <button class="circle-btn large">
-          ❤️
-        </button>
-        <button class="circle-btn small">
-          ⭐
-        </button>
-      </div>
+          <!-- Swipe knoppen zoals wireframe, in jouw stijl -->
+          <div class="swipe-controls">
+            <button class="circle-btn small undo" title="Terug">
+              ↺
+            </button>
+            <button class="circle-btn large nope" title="Geen interesse">
+              ❌
+            </button>
+            <button class="circle-btn large like" title="Like">
+              ❤️
+            </button>
+            <button class="circle-btn small superlike" title="Super like">
+              ⭐
+            </button>
+          </div>
 
-      <!-- Info onder kaart -->
-      <div class="hint">
-        Swipe-style actions komen hier later.
-        Voor nu kun je alvast genieten van de vibes ⚡
-      </div>
-    </main>
+          
+        </section>
+      </main>
+    </div>
   </section>
 </template>
 
@@ -94,11 +130,11 @@ export default {
   },
   computed: {
     displayName() {
-      if (!this.user) return "SoulConnector";
-      return this.user.name || this.user.email?.split("@")[0] || "SoulConnector";
+      if (!this.user) return "Bella";
+      return this.user.name || this.user.email?.split("@")[0] || "Bella";
     },
     displayAge() {
-      if (!this.user || !this.user.age) return null;
+      if (!this.user || !this.user.age) return 21;
       return `${this.user.age}`;
     },
     avatarInitial() {
@@ -117,7 +153,6 @@ export default {
       }
     }
 
-    // als iemand /home opent zonder ingelogd te zijn
     if (!this.user) {
       this.$router.push("/login");
     }
@@ -132,6 +167,17 @@ export default {
 </script>
 
 <style scoped>
+/* zorg dat er niets "achter" .home zichtbaar is */
+:global(html, body, #app) {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;     /* geen scrollbars */
+  background: transparent;  /* geen zwarte achtergrond */
+}
+
+/* Home vult altijd het volledige scherm */
 .home {
   width: 100vw;
   height: 100vh;
@@ -141,67 +187,14 @@ export default {
   color: #fff;
   font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
-  position: fixed;
+  position: fixed;   /* <<< belangrijk */
   top: 0;
   left: 0;
-  overflow: hidden;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;  /* geen scrollbars binnen de home zelf */
 }
 
-/* Top bar */
-.top-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 18px 26px;
-  z-index: 5;
-}
-
-.logo {
-  font-weight: 900;
-  font-size: 1.4rem;
-  letter-spacing: 0.02em;
-  cursor: pointer;
-  user-select: none;
-  transition: 0.25s ease;
-}
-
-.logo:hover {
-  transform: scale(1.05);
-  text-shadow: 0 0 18px rgba(255, 255, 255, 0.7);
-}
-
-.user-chip {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: rgba(255, 255, 255, 0.18);
-  border-radius: 999px;
-  padding: 6px 14px;
-  backdrop-filter: blur(8px);
-}
-
-.user-name {
-  font-size: 0.95rem;
-  font-weight: 600;
-}
-
-.logout-btn {
-  border: none;
-  outline: none;
-  background: #ff6a88;
-  color: white;
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: 0.2s ease;
-}
-
-.logout-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-}
 
 /* Hearts */
 .heart-animation {
@@ -237,19 +230,193 @@ export default {
   }
 }
 
-/* Main layout */
-.main {
+/* Browser bar (bovenste) */
+.browser-bar {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  z-index: 3;
+}
+
+.browser-left {
+  display: flex;
+  gap: 4px;
+}
+
+.browser-btn {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.browser-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.browser-url {
+  flex: 1;
+  margin: 0 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  font-size: 0.8rem;
+}
+
+.browser-search {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Layout */
+.app-shell {
+  flex: 1;
+  display: flex;
+  min-height: 0; /* voorkomt scroll */
+  z-index: 2;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 230px;
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(10px);
+  border-right: 1px solid rgba(255, 255, 255, 0.18);
+  display: flex;
+  flex-direction: column;
+  padding-top: 10px;
+}
+
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  gap: 10px;
+}
+
+.sidebar-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.sidebar-avatar-initial {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.sidebar-user-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-user-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.sidebar-link {
+  padding: 0;
+  margin-top: 2px;
+  border: none;
+  background: none;
+  font-size: 0.75rem;
+  text-align: left;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+}
+
+/* Nav */
+.nav {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.95rem;
+  text-align: left;
+  color: rgba(255, 255, 255, 0.9);
+  transition: background 0.2s ease;
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.nav-item.active {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.nav-icon {
+  width: 20px;
+  text-align: center;
+}
+
+.logout-sidebar {
+  margin-top: auto;
+  margin: 12px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+/* Content rechts */
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.content-header {
+  height: 40px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  font-size: 0.9rem;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.content-main {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 10px 16px 32px;
-  position: relative;
-  z-index: 2;
+  min-height: 0;
 }
 
-/* Tinder-like card */
+/* Kaart en styling: uit je eerste versie */
 .card {
   position: relative;
   width: min(420px, 100%);
@@ -351,7 +518,6 @@ export default {
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-/* card footer */
 .card-footer {
   position: relative;
   padding: 10px 20px 18px;
@@ -373,7 +539,7 @@ export default {
   font-weight: 600;
 }
 
-/* Swipe controls */
+/* Swipe controls: ook uit je eerste versie, maar met kleuren per knop */
 .swipe-controls {
   margin-top: 24px;
   display: flex;
@@ -407,6 +573,22 @@ export default {
   font-size: 2rem;
 }
 
+.circle-btn.undo {
+  color: #f6c945;
+}
+
+.circle-btn.nope {
+  color: #ff3b3b;
+}
+
+.circle-btn.like {
+  color: #24c476;
+}
+
+.circle-btn.superlike {
+  color: #3ec5ff;
+}
+
 .circle-btn:hover {
   transform: translateY(-4px) scale(1.05);
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
@@ -416,7 +598,6 @@ export default {
   transform: translateY(-1px) scale(0.97);
 }
 
-/* hint */
 .hint {
   margin-top: 12px;
   font-size: 0.85rem;
@@ -425,26 +606,43 @@ export default {
 }
 
 /* Responsiveness */
-@media (max-width: 480px) {
-  .top-bar {
-    padding-inline: 16px;
+@media (max-width: 720px) {
+  .sidebar {
+    width: 200px;
+  }
+}
+
+@media (max-width: 640px) {
+  .browser-bar {
+    font-size: 0.8rem;
   }
 
-  .card {
-    border-radius: 24px;
+  .sidebar {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+    padding-bottom: 6px;
   }
 
-  .name-line {
-    font-size: 1.6rem;
+  .nav {
+    flex-direction: row;
+    flex: 1;
+    overflow-x: auto;
   }
 
-  .swipe-controls {
-    gap: 20px;
+  .nav-item {
+    flex: 1;
+    justify-content: center;
   }
 
-  .circle-btn.large {
-    width: 72px;
-    height: 72px;
+  .logout-sidebar {
+    margin-top: 0;
+  }
+
+  .content-main {
+    padding-inline: 8px;
   }
 }
 </style>

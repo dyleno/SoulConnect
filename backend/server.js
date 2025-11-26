@@ -14,7 +14,7 @@ app.get("/", (req, res) => {
   res.json({ message: "Backend werkt!" });
 });
 
-// 🔐 Registreren
+//  Registreren
 app.post("/register", async (req, res) => {
   const { name, age, email, password } = req.body;
 
