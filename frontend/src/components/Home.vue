@@ -1,6 +1,6 @@
 <template>
   <section class="home">
-    <!-- Floating hearts achter alles -->
+    <!-- hearts -->
     <div class="heart-animation">
       <span class="heart" style="left: 12%; animation-delay: 0s;">❤</span>
       <span class="heart" style="left: 30%; animation-delay: 1.5s;">❤</span>
@@ -9,10 +9,8 @@
       <span class="heart" style="left: 90%; animation-delay: 2.3s;">❤</span>
     </div>
 
-    
-
     <div class="app-shell">
-      <!-- Sidebar zoals wireframe -->
+      <!-- Sidebar -->
       <aside class="sidebar">
         <div class="sidebar-user">
           <div class="sidebar-avatar">
@@ -54,66 +52,109 @@
         </button>
       </aside>
 
-      <!-- Hoofdcontent -->
+      <!-- Content -->
       <main class="content">
         <header class="content-header">
           Love starts here — SoulConnect
         </header>
 
         <section class="content-main">
-          <!-- Tinder-achtige kaart -->
-          <div class="card">
-            <div class="card-gradient"></div>
+          <!-- KAART MET DYNAMISCHE TRANSITION -->
+          <transition :name="transitionName" mode="out-in">
+            <!-- er is nog een profiel -->
+            <div
+              v-if="currentProfile"
+              class="card"
+              :key="currentProfile.id"
+            >
+              <div class="card-gradient"></div>
 
-            <div class="card-top">
-              <div class="avatar-circle">
-                <span class="avatar-initial">
-                  {{ avatarInitial }}
-                </span>
+              <div class="card-top">
+                <div class="avatar-circle">
+                  <span class="avatar-initial">
+                    {{ profileInitial }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="card-info">
+                <h2 class="name-line">
+                  {{ currentProfile.name }}
+                  <span class="age">{{ currentProfile.age }}</span>
+                </h2>
+                <p class="tagline">
+                  {{ currentProfile.tagline }}
+                </p>
+
+                <div class="tags">
+                  <span
+                    v-for="tag in currentProfile.tags"
+                    :key="tag"
+                    class="tag"
+                  >
+                    {{ tag }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="card-footer">
+                <div class="pill">
+                  Ingelogd als
+                  <span class="pill-email">{{ user?.email }}</span>
+                </div>
               </div>
             </div>
 
-            <div class="card-info">
-              <h2 class="name-line">
-                {{ displayName }}
-                <span v-if="displayAge" class="age">{{ displayAge }}</span>
-              </h2>
-              <p class="tagline">
-                Klaar om echte vibes te swipen 🔥
-              </p>
-
-              <div class="tags">
-                <span class="tag">✨ New here</span>
-                <span class="tag">💬 Open voor chat</span>
-                <span class="tag">❤️ SoulConnect member</span>
+            <!-- alle profielen geswipet -->
+            <div v-else class="card card--empty" key="no-profiles">
+              <div class="card-gradient"></div>
+              <div class="card-info">
+                <h2 class="name-line">Geen profielen meer</h2>
+                <p class="tagline">
+                  Je hebt alle 5 profielen geswipet 🎉
+                </p>
+                <div class="tags">
+                  <span class="tag">Kom later terug voor meer matches</span>
+                </div>
               </div>
             </div>
+          </transition>
 
-            <div class="card-footer">
-              <div class="pill">
-                Ingelogd als
-                <span class="pill-email">{{ user?.email }}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Swipe knoppen zoals wireframe, in jouw stijl -->
+          <!-- Swipe knoppen -->
           <div class="swipe-controls">
-            <button class="circle-btn small undo" title="Terug">
+            <button
+              class="circle-btn small undo"
+              title="Terug"
+              @click="undoSwipe"
+              :disabled="currentIndex === 0"
+            >
               ↺
             </button>
-            <button class="circle-btn large nope" title="Geen interesse">
+            <button
+              class="circle-btn large nope"
+              title="Geen interesse"
+              @click="swipe('nope')"
+              :disabled="!currentProfile"
+            >
               ❌
             </button>
-            <button class="circle-btn large like" title="Like">
+            <button
+              class="circle-btn large like"
+              title="Like"
+              @click="swipe('like')"
+              :disabled="!currentProfile"
+            >
               ❤️
             </button>
-            <button class="circle-btn small superlike" title="Super like">
+            <button
+              class="circle-btn small superlike"
+              title="Super like"
+              @click="swipe('superlike')"
+              :disabled="!currentProfile"
+            >
               ⭐
             </button>
           </div>
-
-          
         </section>
       </main>
     </div>
@@ -126,9 +167,52 @@ export default {
   data() {
     return {
       user: null,
+
+      // hardcoded profielen
+      profiles: [
+        {
+          id: 1,
+          name: "Bella",
+          age: 21,
+          tagline: "Films kijken, koken en veel lachen.",
+          tags: ["🎬 Filmfanaat", "🍳 Hobbykok", "🐶 Hondenliefhebber"],
+        },
+        {
+          id: 2,
+          name: "Milan",
+          age: 24,
+          tagline: "Altijd in voor een terrasje of citytrip.",
+          tags: ["✈️ Reiziger", "☕ Koffielover", "📸 Fotografie"],
+        },
+        {
+          id: 3,
+          name: "Sophie",
+          age: 19,
+          tagline: "Student UX, guilty pleasure: slechte reality-tv.",
+          tags: ["🎨 UX design", "📺 Reality binges", "🍕 Pizza above all"],
+        },
+        {
+          id: 4,
+          name: "Noah",
+          age: 23,
+          tagline: "Sportief, maar win rustig Mario Kart van me 😉",
+          tags: ["🏋️‍♂️ Gym", "🎮 Gamer", "🎧 Lo-fi enjoyer"],
+        },
+        {
+          id: 5,
+          name: "Luna",
+          age: 22,
+          tagline: "Zoekt iemand om mee te verdwalen in muziek & boeken.",
+          tags: ["🎵 Concertjes", "📚 Bookworm", "🌙 Nachtmens"],
+        },
+      ],
+
+      currentIndex: 0,
+      lastSwipe: "neutral", // bepaalt animatie-richting
     };
   },
   computed: {
+    // ingelogde user links in sidebar
     displayName() {
       if (!this.user) return "Bella";
       return this.user.name || this.user.email?.split("@")[0] || "Bella";
@@ -141,6 +225,26 @@ export default {
       const n = this.displayName;
       return n ? n.charAt(0).toUpperCase() : "S";
     },
+
+    // actief profiel in de swipe-stapel
+    currentProfile() {
+      return this.profiles[this.currentIndex] || null;
+    },
+    profileInitial() {
+      if (!this.currentProfile) return "?";
+      return this.currentProfile.name.charAt(0).toUpperCase();
+    },
+
+    // kiest welke transition-naam we gebruiken
+    transitionName() {
+      if (this.lastSwipe === "like" || this.lastSwipe === "superlike") {
+        return "swipe-right";
+      }
+      if (this.lastSwipe === "nope") {
+        return "swipe-left";
+      }
+      return "card-swipe"; // standaard / undo
+    },
   },
   mounted() {
     const stored = localStorage.getItem("user");
@@ -152,7 +256,6 @@ export default {
         this.user = null;
       }
     }
-
     if (!this.user) {
       this.$router.push("/login");
     }
@@ -161,6 +264,24 @@ export default {
     logout() {
       localStorage.removeItem("user");
       this.$router.push("/login");
+    },
+
+    swipe(action) {
+      if (!this.currentProfile) return;
+
+      this.lastSwipe = action; // bepaalt richting
+      console.log("Swiped", action, "op", this.currentProfile.name);
+
+      if (this.currentIndex < this.profiles.length) {
+        this.currentIndex++;
+      }
+    },
+
+    undoSwipe() {
+      if (this.currentIndex > 0) {
+        this.lastSwipe = "neutral";
+        this.currentIndex--;
+      }
     },
   },
 };
@@ -173,8 +294,8 @@ export default {
   padding: 0;
   height: 100%;
   width: 100%;
-  overflow: hidden;     /* geen scrollbars */
-  background: transparent;  /* geen zwarte achtergrond */
+  overflow: hidden; /* geen scrollbars */
+  background: transparent;
 }
 
 /* Home vult altijd het volledige scherm */
@@ -187,14 +308,13 @@ export default {
   color: #fff;
   font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
-  position: fixed;   /* <<< belangrijk */
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  overflow: hidden;  /* geen scrollbars binnen de home zelf */
+  overflow: hidden;
 }
-
 
 /* Hearts */
 .heart-animation {
@@ -230,60 +350,11 @@ export default {
   }
 }
 
-/* Browser bar (bovenste) */
-.browser-bar {
-  display: flex;
-  align-items: center;
-  padding: 8px 12px;
-  gap: 10px;
-  background: rgba(0, 0, 0, 0.2);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
-  z-index: 3;
-}
-
-.browser-left {
-  display: flex;
-  gap: 4px;
-}
-
-.browser-btn {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.5);
-}
-
-.browser-title {
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.browser-url {
-  flex: 1;
-  margin: 0 8px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  font-size: 0.8rem;
-}
-
-.browser-search {
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
 /* Layout */
 .app-shell {
   flex: 1;
   display: flex;
-  min-height: 0; /* voorkomt scroll */
+  min-height: 0;
   z-index: 2;
 }
 
@@ -416,7 +487,7 @@ export default {
   min-height: 0;
 }
 
-/* Kaart en styling: uit je eerste versie */
+/* Kaart */
 .card {
   position: relative;
   width: min(420px, 100%);
@@ -428,18 +499,10 @@ export default {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  animation: cardPop 0.8s ease-out forwards;
 }
 
-@keyframes cardPop {
-  0% {
-    opacity: 0;
-    transform: translateY(40px) scale(0.95) rotate(-1deg);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1) rotate(0deg);
-  }
+.card--empty {
+  justify-content: flex-end;
 }
 
 .card-gradient {
@@ -539,7 +602,7 @@ export default {
   font-weight: 600;
 }
 
-/* Swipe controls: ook uit je eerste versie, maar met kleuren per knop */
+/* Swipe controls */
 .swipe-controls {
   margin-top: 24px;
   display: flex;
@@ -589,20 +652,68 @@ export default {
   color: #3ec5ff;
 }
 
-.circle-btn:hover {
+.circle-btn:hover:not(:disabled) {
   transform: translateY(-4px) scale(1.05);
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
 }
 
-.circle-btn:active {
+.circle-btn:active:not(:disabled) {
   transform: translateY(-1px) scale(0.97);
 }
 
-.hint {
-  margin-top: 12px;
-  font-size: 0.85rem;
-  opacity: 0.9;
-  text-align: center;
+.circle-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* TRANSITIONS */
+/* neutrale animatie (bij eerste load / undo) */
+.card-swipe-enter-active,
+.card-swipe-leave-active {
+  transition: all 0.35s ease;
+}
+
+.card-swipe-enter-from {
+  opacity: 0;
+  transform: translateY(25px) scale(0.96);
+}
+
+.card-swipe-leave-to {
+  opacity: 0;
+  transform: translateY(-25px) scale(0.96);
+}
+
+/* swipe naar LINKS (❌) */
+.swipe-left-enter-active,
+.swipe-left-leave-active {
+  transition: all 0.35s ease;
+}
+
+.swipe-left-enter-from {
+  opacity: 0;
+  transform: translateX(60px) scale(0.96);
+}
+
+.swipe-left-leave-to {
+  opacity: 0;
+  transform: translateX(-140px) rotate(-10deg) scale(0.9);
+}
+
+/* swipe naar RECHTS (❤️ / ⭐) */
+.swipe-right-enter-active,
+.swipe-right-leave-active {
+  transition: all 0.35s ease;
+}
+
+.swipe-right-enter-from {
+  opacity: 0;
+  transform: translateX(-60px) scale(0.96);
+}
+
+.swipe-right-leave-to {
+  opacity: 0;
+  transform: translateX(140px) rotate(10deg) scale(0.9);
 }
 
 /* Responsiveness */
@@ -613,10 +724,6 @@ export default {
 }
 
 @media (max-width: 640px) {
-  .browser-bar {
-    font-size: 0.8rem;
-  }
-
   .sidebar {
     width: 100%;
     flex-direction: row;
