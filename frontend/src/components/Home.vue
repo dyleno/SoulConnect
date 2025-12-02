@@ -29,7 +29,7 @@
             <span class="nav-icon">♡</span>
             <span>Home</span>
           </button>
-          <button class="nav-item">
+          <button class="nav-item" @click="$router.push('/chat')">
             <span class="nav-icon">💬</span>
             <span>Berichten</span>
           </button>
@@ -41,7 +41,7 @@
             <span class="nav-icon">⚙️</span>
             <span>Instellingen</span>
           </button>
-          <button class="nav-item">
+          <button class="nav-item" @click="$router.push('/premium')">
             <span class="nav-icon">★</span>
             <span>Premium</span>
           </button>
@@ -162,13 +162,15 @@
 </template>
 
 <script>
+import axios from "axios";
+
 export default {
   name: "HomePage",
   data() {
     return {
       user: null,
 
-      // hardcoded profielen
+      // hardcoded profielen (ids moeten overeenkomen met profiles.id in DB)
       profiles: [
         {
           id: 1,
@@ -245,6 +247,11 @@ export default {
       }
       return "card-swipe"; // standaard / undo
     },
+
+    myProfileId() {
+      // moet door jouw backend in localStorage gezet worden
+      return this.user?.profile_id || null;
+    },
   },
   mounted() {
     const stored = localStorage.getItem("user");
@@ -266,11 +273,16 @@ export default {
       this.$router.push("/login");
     },
 
-    swipe(action) {
+    async swipe(action) {
       if (!this.currentProfile) return;
 
       this.lastSwipe = action; // bepaalt richting
       console.log("Swiped", action, "op", this.currentProfile.name);
+
+      // 👉 bij like of superlike een match aanmaken
+      if ((action === "like" || action === "superlike") && this.myProfileId) {
+        await this.createMatchForCurrentProfile();
+      }
 
       if (this.currentIndex < this.profiles.length) {
         this.currentIndex++;
@@ -281,6 +293,22 @@ export default {
       if (this.currentIndex > 0) {
         this.lastSwipe = "neutral";
         this.currentIndex--;
+      }
+    },
+
+    async createMatchForCurrentProfile() {
+      if (!this.myProfileId || !this.currentProfile) return;
+
+      const likedProfileId = this.currentProfile.id;
+
+      try {
+        await axios.post("/api/matches", {
+          profile_id_1: this.myProfileId,
+          profile_id_2: likedProfileId,
+        });
+        console.log("Match opgeslagen in database");
+      } catch (err) {
+        console.error("Fout bij opslaan match", err);
       }
     },
   },
@@ -413,7 +441,6 @@ export default {
   cursor: pointer;
 }
 
-/* Nav */
 .nav {
   margin-top: 8px;
   display: flex;
@@ -668,7 +695,6 @@ export default {
 }
 
 /* TRANSITIONS */
-/* neutrale animatie (bij eerste load / undo) */
 .card-swipe-enter-active,
 .card-swipe-leave-active {
   transition: all 0.35s ease;
