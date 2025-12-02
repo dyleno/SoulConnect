@@ -39,6 +39,15 @@
           required
         />
 
+        <!-- ✅ Nieuw veld -->
+        <input
+          type="password"
+          v-model="confirmPassword"
+          placeholder="Bevestig wachtwoord"
+          minlength="16"
+          required
+        />
+
         <button class="btn" :disabled="loading">
           {{ loading ? "Bezig met registreren..." : "Account aanmaken" }}
         </button>
@@ -49,7 +58,7 @@
         {{ errorMessage }}
       </p>
 
-      <!-- Succesmelding (optioneel) -->
+      <!-- Succesmelding -->
       <p v-if="successMessage" class="success-text">
         {{ successMessage }}
       </p>
@@ -72,6 +81,7 @@ export default {
       age: "",
       email: "",
       password: "",
+      confirmPassword: "", // ✅ toegevoegd
       errorMessage: "",
       successMessage: "",
       loading: false,
@@ -83,6 +93,13 @@ export default {
       this.successMessage = "";
       this.loading = true;
 
+      // ✅ Check of wachtwoorden overeenkomen
+      if (this.password !== this.confirmPassword) {
+        this.errorMessage = "Wachtwoorden komen niet overeen.";
+        this.loading = false;
+        return;
+      }
+
       try {
         const response = await axios.post("http://localhost:3000/register", {
           name: this.name,
@@ -91,13 +108,11 @@ export default {
           password: this.password,
         });
 
-        // user opslaan (zodat je hem in Home kunt gebruiken)
         localStorage.setItem("user", JSON.stringify(response.data.user));
 
         this.successMessage =
           response.data?.message || "Account succesvol aangemaakt!";
 
-        
         this.$router.push("/home");
       } catch (err) {
         console.error(err);
@@ -111,6 +126,7 @@ export default {
   },
 };
 </script>
+
 
 <style scoped>
 .auth-container {
