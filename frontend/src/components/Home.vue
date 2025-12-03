@@ -19,8 +19,10 @@
             </span>
           </div>
           <div class="sidebar-user-text">
-            <div class="sidebar-user-name">Gebruiker</div>
-            <button class="sidebar-link">Bekijk profiel</button>
+            <div class="sidebar-user-name">{{ sidebarName }}</div>
+            <button class="sidebar-link" @click="$router.push('/profiel')">
+              Bekijk profiel
+            </button>
           </div>
         </div>
 
@@ -37,7 +39,7 @@
             <span class="nav-icon">🔍</span>
             <span>Zoeken</span>
           </button>
-          <button class="nav-item">
+          <button class="nav-item" @click="$router.push('/instellingen')">
             <span class="nav-icon">⚙️</span>
             <span>Instellingen</span>
           </button>
@@ -111,7 +113,7 @@
               <div class="card-info">
                 <h2 class="name-line">Geen profielen meer</h2>
                 <p class="tagline">
-                  Je hebt alle 5 profielen geswipet 🎉
+                  Je hebt alle profielen geswipet 🎉
                 </p>
                 <div class="tags">
                   <span class="tag">Kom later terug voor meer matches</span>
@@ -169,124 +171,77 @@ export default {
   data() {
     return {
       user: null,
-
-      // hardcoded profielen (ids moeten overeenkomen met profiles.id in DB)
-      profiles: [
-        {
-          id: 1,
-          name: "Bella",
-          age: 21,
-          tagline: "Films kijken, koken en veel lachen.",
-          tags: ["🎬 Filmfanaat", "🍳 Hobbykok", "🐶 Hondenliefhebber"],
-        },
-        {
-          id: 2,
-          name: "Milan",
-          age: 24,
-          tagline: "Altijd in voor een terrasje of citytrip.",
-          tags: ["✈️ Reiziger", "☕ Koffielover", "📸 Fotografie"],
-        },
-        {
-          id: 3,
-          name: "Sophie",
-          age: 19,
-          tagline: "Student UX, guilty pleasure: slechte reality-tv.",
-          tags: ["🎨 UX design", "📺 Reality binges", "🍕 Pizza above all"],
-        },
-        {
-          id: 4,
-          name: "Noah",
-          age: 23,
-          tagline: "Sportief, maar win rustig Mario Kart van me 😉",
-          tags: ["🏋️‍♂️ Gym", "🎮 Gamer", "🎧 Lo-fi enjoyer"],
-        },
-        {
-          id: 5,
-          name: "Luna",
-          age: 22,
-          tagline: "Zoekt iemand om mee te verdwalen in muziek & boeken.",
-          tags: ["🎵 Concertjes", "📚 Bookworm", "🌙 Nachtmens"],
-        },
-      ],
-
+      profiles: [],
       currentIndex: 0,
-      lastSwipe: "neutral", // bepaalt animatie-richting
+      lastSwipe: "neutral",
     };
   },
   computed: {
-    // ingelogde user links in sidebar
-    displayName() {
-      if (!this.user) return "Bella";
-      return this.user.name || this.user.email?.split("@")[0] || "Bella";
-    },
-    displayAge() {
-      if (!this.user || !this.user.age) return 21;
-      return `${this.user.age}`;
-    },
-    avatarInitial() {
-      const n = this.displayName;
-      return n ? n.charAt(0).toUpperCase() : "S";
-    },
-
-    // actief profiel in de swipe-stapel
     currentProfile() {
       return this.profiles[this.currentIndex] || null;
     },
     profileInitial() {
-      if (!this.currentProfile) return "?";
-      return this.currentProfile.name.charAt(0).toUpperCase();
+      return this.currentProfile?.name?.charAt(0).toUpperCase() || "?";
     },
-
-    // kiest welke transition-naam we gebruiken
-    transitionName() {
-      if (this.lastSwipe === "like" || this.lastSwipe === "superlike") {
-        return "swipe-right";
-      }
-      if (this.lastSwipe === "nope") {
-        return "swipe-left";
-      }
-      return "card-swipe"; // standaard / undo
-    },
-
     myProfileId() {
-      // moet door jouw backend in localStorage gezet worden
       return this.user?.profile_id || null;
     },
+    sidebarName() {
+      if (!this.user) return "Gebruiker";
+      return this.user.name || this.user.email?.split("@")[0] || "Gebruiker";
+    },
+    avatarInitial() {
+      const n = this.sidebarName;
+      return n ? n.charAt(0).toUpperCase() : "G";
+    },
+    transitionName() {
+      if (this.lastSwipe === "like" || this.lastSwipe === "superlike")
+        return "swipe-right";
+      if (this.lastSwipe === "nope") return "swipe-left";
+      return "card-swipe";
+    },
   },
-  mounted() {
+
+  async mounted() {
     const stored = localStorage.getItem("user");
-    if (stored) {
-      try {
-        this.user = JSON.parse(stored);
-      } catch (e) {
-        console.error("Kon user niet parsen uit localStorage", e);
-        this.user = null;
-      }
-    }
-    if (!this.user) {
-      this.$router.push("/login");
-    }
+    if (!stored) return this.$router.push("/login");
+
+    this.user = JSON.parse(stored);
+
+    await this.loadProfiles();
   },
+
   methods: {
-    logout() {
-      localStorage.removeItem("user");
-      this.$router.push("/login");
+    async loadProfiles() {
+      if (!this.myProfileId) return;
+
+      const res = await axios.get(
+        "http://localhost:3000/api/profiles/random?profile_id=" +
+          this.myProfileId
+      );
+
+      this.profiles = res.data.map((p) => ({
+        ...p,
+        tagline: p.bio || "Geen bio ingevuld",
+        tags: p.interests || [],
+      }));
+
+      this.currentIndex = 0;
     },
 
     async swipe(action) {
       if (!this.currentProfile) return;
 
-      this.lastSwipe = action; // bepaalt richting
-      console.log("Swiped", action, "op", this.currentProfile.name);
+      this.lastSwipe = action;
 
-      // 👉 bij like of superlike een match aanmaken
       if ((action === "like" || action === "superlike") && this.myProfileId) {
-        await this.createMatchForCurrentProfile();
+        await axios.post("http://localhost:3000/api/matches", {
+          profile_id_1: this.myProfileId,
+          profile_id_2: this.currentProfile.id,
+        });
       }
 
-      if (this.currentIndex < this.profiles.length) {
-        this.currentIndex++;
-      }
+      this.currentIndex++;
     },
 
     undoSwipe() {
@@ -296,37 +251,24 @@ export default {
       }
     },
 
-    async createMatchForCurrentProfile() {
-      if (!this.myProfileId || !this.currentProfile) return;
-
-      const likedProfileId = this.currentProfile.id;
-
-      try {
-        await axios.post("/api/matches", {
-          profile_id_1: this.myProfileId,
-          profile_id_2: likedProfileId,
-        });
-        console.log("Match opgeslagen in database");
-      } catch (err) {
-        console.error("Fout bij opslaan match", err);
-      }
+    logout() {
+      localStorage.removeItem("user");
+      this.$router.push("/login");
     },
   },
 };
 </script>
 
 <style scoped>
-/* zorg dat er niets "achter" .home zichtbaar is */
 :global(html, body, #app) {
   margin: 0;
   padding: 0;
   height: 100%;
   width: 100%;
-  overflow: hidden; /* geen scrollbars */
+  overflow: hidden;
   background: transparent;
 }
 
-/* Home vult altijd het volledige scherm */
 .home {
   width: 100vw;
   height: 100vh;
@@ -710,7 +652,7 @@ export default {
   transform: translateY(-25px) scale(0.96);
 }
 
-/* swipe naar LINKS (❌) */
+/* swipe LINKS */
 .swipe-left-enter-active,
 .swipe-left-leave-active {
   transition: all 0.35s ease;
@@ -726,7 +668,7 @@ export default {
   transform: translateX(-140px) rotate(-10deg) scale(0.9);
 }
 
-/* swipe naar RECHTS (❤️ / ⭐) */
+/* swipe RECHTS */
 .swipe-right-enter-active,
 .swipe-right-leave-active {
   transition: all 0.35s ease;

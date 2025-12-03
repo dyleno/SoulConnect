@@ -19,8 +19,10 @@
             </span>
           </div>
           <div class="sidebar-user-text">
-            <div class="sidebar-user-name">Gebruiker</div>
-            <button class="sidebar-link">Bekijk profiel</button>
+            <div class="sidebar-user-name">{{ displayName }}</div>
+            <button class="sidebar-link" @click="$router.push('/profiel')">
+              Bekijk profiel
+            </button>
           </div>
         </div>
 
@@ -40,7 +42,7 @@
             <span>Zoeken</span>
           </button>
 
-          <button class="nav-item">
+          <button class="nav-item" @click="$router.push('/instellingen')">
             <span class="nav-icon">⚙️</span>
             <span>Instellingen</span>
           </button>
@@ -93,8 +95,8 @@ export default {
   },
   computed: {
     displayName() {
-      if (!this.user) return "Bella";
-      return this.user.name || this.user.email?.split("@")[0] || "Bella";
+      if (!this.user) return "Gebruiker";
+      return this.user.name || this.user.email?.split("@")[0] || "Gebruiker";
     },
     avatarInitial() {
       const n = this.displayName;
@@ -111,7 +113,6 @@ export default {
 </script>
 
 <style scoped>
-/* Zelfde global reset als in Home.vue */
 :global(html, body, #app) {
   margin: 0;
   padding: 0;
@@ -347,7 +348,7 @@ export default {
   width: 100%;
 }
 
-/* Responsiveness – gelijk aan Home.vue */
+/* Responsiveness */
 @media (max-width: 720px) {
   .sidebar {
     width: 200px;
