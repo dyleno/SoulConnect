@@ -54,11 +54,11 @@ export default {
 
       try {
         const response = await axios.post("http://localhost:3000/login", {
-          email: this.email,
+          email: this.email.trim(),
           password: this.password,
         });
 
-        // User opslaan
+        // User opslaan (met profile_id, name, age, email)
         localStorage.setItem("user", JSON.stringify(response.data.user));
 
         // 👉 Na inloggen naar home
@@ -75,7 +75,6 @@ export default {
   },
 };
 </script>
-
 
 <style scoped>
 .auth-container {

@@ -8,6 +8,7 @@
       <h2>Registreren</h2>
 
       <form @submit.prevent="register">
+        <!-- Naam -->
         <input
           type="text"
           v-model="name"
@@ -15,6 +16,7 @@
           required
         />
 
+        <!-- Leeftijd -->
         <input
           type="number"
           v-model.number="age"
@@ -24,6 +26,7 @@
           required
         />
 
+        <!-- Email -->
         <input
           type="email"
           v-model="email"
@@ -31,6 +34,46 @@
           required
         />
 
+        <!-- Bio -->
+        <textarea
+          v-model="bio"
+          class="textarea"
+          placeholder="Vertel iets over jezelf..."
+          required
+        ></textarea>
+
+        <!-- Gender -->
+        <select v-model="gender" class="select">
+          <option disabled value="">Geslacht</option>
+          <option value="man">Man</option>
+          <option value="vrouw">Vrouw</option>
+          <option value="anders">Anders</option>
+        </select>
+
+        <!-- Locatie -->
+        <input
+          type="text"
+          v-model="location"
+          placeholder="Locatie (bijv. Amsterdam)"
+          required
+        />
+
+        <!-- INTERESSES -->
+        <label class="tag-label">Kies jouw interesses:</label>
+
+        <div class="tag-grid">
+          <div
+            v-for="tag in availableInterests"
+            :key="tag"
+            class="tag-item"
+            :class="{ active: interests.includes(tag) }"
+            @click="toggleInterest(tag)"
+          >
+            {{ tag }}
+          </div>
+        </div>
+
+        <!-- Wachtwoord -->
         <input
           type="password"
           v-model="password"
@@ -39,7 +82,7 @@
           required
         />
 
-        <!-- ✅ Nieuw veld -->
+        <!-- Confirm -->
         <input
           type="password"
           v-model="confirmPassword"
@@ -48,6 +91,7 @@
           required
         />
 
+        <!-- Verzend-knop -->
         <button class="btn" :disabled="loading">
           {{ loading ? "Bezig met registreren..." : "Account aanmaken" }}
         </button>
@@ -80,20 +124,45 @@ export default {
       name: "",
       age: "",
       email: "",
+      bio: "",
+      gender: "",
+      location: "",
       password: "",
-      confirmPassword: "", // ✅ toegevoegd
+      confirmPassword: "",
+      interests: [],
+      availableInterests: [
+        "Film",
+        "Muziek maken",
+        "Voetbal",
+        "Reizen",
+        "Koken",
+        "Gamen",
+        "Lezen",
+        "Gym",
+        "Wandelen",
+        "Fotografie",
+      ],
+
       errorMessage: "",
       successMessage: "",
       loading: false,
     };
   },
+
   methods: {
+    toggleInterest(tag) {
+      if (this.interests.includes(tag)) {
+        this.interests = this.interests.filter((t) => t !== tag);
+      } else {
+        this.interests.push(tag);
+      }
+    },
+
     async register() {
       this.errorMessage = "";
       this.successMessage = "";
       this.loading = true;
 
-      // ✅ Check of wachtwoorden overeenkomen
       if (this.password !== this.confirmPassword) {
         this.errorMessage = "Wachtwoorden komen niet overeen.";
         this.loading = false;
@@ -104,8 +173,12 @@ export default {
         const response = await axios.post("http://localhost:3000/register", {
           name: this.name,
           age: this.age,
-          email: this.email,
+          email: this.email.trim(),
           password: this.password,
+          bio: this.bio,
+          gender: this.gender,
+          location: this.location,
+          interests: this.interests.join(","),
         });
 
         localStorage.setItem("user", JSON.stringify(response.data.user));
@@ -127,25 +200,25 @@ export default {
 };
 </script>
 
-
 <style scoped>
+/* --- jouw originele styling, exact zoals je gaf --- */
 .auth-container {
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;  /* NIEUW → kaart bovenaan beginnen */
+  padding-top: 60px;        /* afstand van boven */
+  padding-bottom: 60px;     /* voorkomt plakken onderaan */
   height: 100vh;
   width: 100vw;
+  overflow-y: auto;         /* SCROLL FIX */
+  overflow-x: hidden;
   background: linear-gradient(135deg, #ff5e7e, #ff1e5a);
   position: fixed;
   top: 0;
   left: 0;
-  overflow: hidden;
-  animation: fadeInBackground 0.8s ease-in-out;
 }
 
-/* ------------------------------------------------ */
-/* 🔥 Tinder-like Header */
-/* ------------------------------------------------ */
+
 .top-header {
   position: absolute;
   top: 20px;
@@ -160,12 +233,9 @@ export default {
 
 .top-header:hover {
   transform: scale(1.05);
-  text-shadow: 0 0 15px rgba(255,255,255,0.6);
+  text-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
 }
 
-/* ------------------------------------------------ */
-/* 🔥 Card Styling */
-/* ------------------------------------------------ */
 .auth-card {
   background: white;
   padding: 50px 40px;
@@ -177,7 +247,6 @@ export default {
   backdrop-filter: blur(5px);
 }
 
-/* Title */
 h2 {
   font-size: 2rem;
   color: #ff1e5a;
@@ -185,8 +254,8 @@ h2 {
   margin-bottom: 25px;
 }
 
-/* Inputs */
-input {
+input,
+select {
   width: 100%;
   padding: 14px;
   border: 2px solid #ffd1dd;
@@ -196,12 +265,59 @@ input {
   transition: 0.25s ease;
 }
 
-input:focus {
+textarea {
+  width: 100%;
+  padding: 14px;
+  margin-top: 14px;
+  border-radius: 12px;
+  border: 2px solid #ffd1dd;
+  min-height: 80px;
+  resize: none;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
   border-color: #ff4670;
   box-shadow: 0 0 8px rgba(255, 70, 110, 0.4);
 }
 
-/* Main button */
+.tag-label {
+  margin-top: 18px;
+  font-weight: bold;
+  color: #444;
+  text-align: left;
+  display: block;
+}
+
+.tag-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.tag-item {
+  background: #ffe5ee;
+  border: 1px solid #ffb3c7;
+  cursor: pointer;
+  transition: 0.2s ease;
+   padding: 5px 10px;
+  font-size: 0.85rem;
+  border-radius: 16px;
+}
+
+.tag-item.active {
+  background: #ff4670;
+  color: white;
+  border-color: #ff2d56;
+}
+.register-text {
+  margin-top: 12px;
+  color: #444;
+  font-size: 0.9rem;
+}
+
 .btn {
   width: 100%;
   padding: 14px;
@@ -222,33 +338,6 @@ input:focus {
   box-shadow: 0 8px 25px rgba(255, 50, 90, 0.35);
 }
 
-.btn[disabled] {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.register-text {
-  margin-top: 18px;
-  font-size: 0.95rem;
-  color: #666;
-}
-
-.register-link {
-  color: #ff1e5a !important;
-  font-weight: 700;
-  text-decoration: underline !important;
-  transition: 0.25s ease !important;
-}
-
-.register-link:hover {
-  color: #ff2e6a !important;
-  text-shadow: 0 0 15px rgba(255, 50, 90, 0.4);
-}
-
-.register-link:visited {
-  color: #ff1e5a !important;
-}
-
 .error-text {
   margin-top: 12px;
   color: #e63946;
@@ -262,12 +351,22 @@ input:focus {
 }
 
 @keyframes fadeIn {
-  0% { opacity: 0; transform: translateY(40px) scale(0.96); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
+  0% {
+    opacity: 0;
+    transform: translateY(40px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 @keyframes fadeInBackground {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
 }
 </style>

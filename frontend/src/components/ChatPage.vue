@@ -19,19 +19,19 @@
             </span>
           </div>
           <div class="sidebar-user-text">
-            <div class="sidebar-user-name">Gebruiker</div>
-            <button class="sidebar-link">Bekijk profiel</button>
+            <div class="sidebar-user-name">{{ sidebarName }}</div>
+            <button class="sidebar-link" @click="$router.push('/profiel')">
+              Bekijk profiel
+            </button>
           </div>
         </div>
 
         <nav class="nav">
-          <!-- NIET actief op chat -->
           <button class="nav-item" @click="$router.push('/home')">
             <span class="nav-icon">♡</span>
             <span>Home</span>
           </button>
 
-          <!-- WÉL actief op chat -->
           <button class="nav-item active" @click="$router.push('/chat')">
             <span class="nav-icon">💬</span>
             <span>Berichten</span>
@@ -42,7 +42,7 @@
             <span>Zoeken</span>
           </button>
 
-          <button class="nav-item">
+          <button class="nav-item" @click="$router.push('/instellingen')">
             <span class="nav-icon">⚙️</span>
             <span>Instellingen</span>
           </button>
@@ -63,7 +63,7 @@
         </header>
 
         <div class="content-main chat-body">
-          <!-- Matches List -->
+          <!-- Match lijst -->
           <div class="match-list">
             <div class="match-list-header">Alle Matches</div>
 
@@ -71,14 +71,19 @@
               v-for="m in matches"
               :key="m.id"
               class="match-item"
-              :class="{ selected: m.id === activeMatch?.id }"
+              :class="{ selected: activeMatch && m.id === activeMatch.id }"
               @click="selectMatch(m)"
             >
-              <div class="match-avatar">{{ m.initial }}</div>
+              <div class="match-avatar">
+                {{ m.profile.name.charAt(0).toUpperCase() }}
+              </div>
               <div class="match-info">
-                <div class="match-name">{{ m.name }}, {{ m.age }}</div>
+                <div class="match-name">
+                  {{ m.profile.name }}, {{ m.profile.age }}
+                </div>
                 <div class="match-last">
-                  Laatst online {{ m.lastOnline || 'onbekend' }}
+                  Laatst online
+                  {{ formatLastOnline(m.profile.last_online) }}
                 </div>
               </div>
             </div>
@@ -92,13 +97,16 @@
           <div class="chat-window">
             <template v-if="activeMatch">
               <div class="chat-header">
-                <div class="chat-avatar">{{ activeMatch.initial }}</div>
+                <div class="chat-avatar">
+                  {{ activeMatch.profile.name.charAt(0).toUpperCase() }}
+                </div>
                 <div class="chat-user">
                   <div class="chat-name">
-                    {{ activeMatch.name }}, {{ activeMatch.age }}
+                    {{ activeMatch.profile.name }},
+                    {{ activeMatch.profile.age }}
                   </div>
                   <div class="chat-location">
-                    {{ activeMatch.location || "Onbekende locatie" }}
+                    {{ activeMatch.profile.location || "Onbekende locatie" }}
                   </div>
                 </div>
 
@@ -120,7 +128,9 @@
                   :class="msg.from === 'me' ? 'me' : 'them'"
                 >
                   <div class="msg-text">{{ msg.text }}</div>
-                  <div class="msg-time">{{ msg.time }}</div>
+                  <div class="msg-time">
+                    {{ formatMessageTime(msg.time) }}
+                  </div>
                 </div>
               </div>
 
@@ -137,7 +147,9 @@
             </template>
 
             <template v-else>
-              <div class="empty-chat">Selecteer een match om te beginnen ✨</div>
+              <div class="empty-chat">
+                Selecteer een match om te beginnen ✨
+              </div>
             </template>
           </div>
         </div>
@@ -155,21 +167,25 @@ export default {
     return {
       user: JSON.parse(localStorage.getItem("user")) || null,
       newMessage: "",
-      matches: [], // wordt via API gevuld
+      matches: [], // [{ id, profile: {...}, messages: [...] }]
       activeMatch: null,
     };
   },
   computed: {
-    displayName() {
-      if (!this.user) return "Bella";
-      return this.user.name || this.user.email?.split("@")[0] || "Bella";
-    },
-    avatarInitial() {
-      const n = this.displayName;
-      return n ? n.charAt(0).toUpperCase() : "S";
-    },
     myProfileId() {
       return this.user?.profile_id || null;
+    },
+    sidebarName() {
+      if (!this.user) return "Gebruiker";
+      return (
+        this.user.name ||
+        this.user.email?.split("@")[0] ||
+        "Gebruiker"
+      );
+    },
+    avatarInitial() {
+      const n = this.sidebarName;
+      return n ? n.charAt(0).toUpperCase() : "G";
     },
   },
   async mounted() {
@@ -186,39 +202,21 @@ export default {
   methods: {
     async fetchMatches() {
       try {
-        // Verwacht JSON zoals:
-        // [
-        //   {
-        //     id: 10,
-        //     other_profile: { id, name, birthdate, bio, gender, interests, location? },
-        //     last_online: "...",
-        //     messages: [
-        //       { id, match_id, sender_id, content, created_at }
-        //     ]
-        //   }
-        // ]
-        const res = await axios.get("/api/matches", {
+        const res = await axios.get("http://localhost:3000/api/matches", {
           params: { profile_id: this.myProfileId },
         });
 
-        this.matches = res.data.map((m) => {
-          const p = m.other_profile;
-          return {
-            id: m.id,
-            profile_id: p.id,
-            name: p.name,
-            age: m.age || 0, // evt. berekenen op backend uit birthdate
-            location: p.location || "",
-            initial: p.name?.charAt(0).toUpperCase() || "?",
-            lastOnline: m.last_online || "",
-            messages: (m.messages || []).map((msg) => ({
-              id: msg.id,
-              text: msg.content,
-              time: msg.created_at,
-              from: msg.sender_id === this.myProfileId ? "me" : "them",
-            })),
-          };
-        });
+        // Backend geeft: [{ id, profile: {...}, messages: [...] }]
+        this.matches = res.data.map((m) => ({
+          id: m.id,
+          profile: m.profile,
+          messages: (m.messages || []).map((msg) => ({
+            id: msg.id,
+            text: msg.content,
+            time: msg.created_at,
+            from: msg.sender_id === this.myProfileId ? "me" : "them",
+          })),
+        }));
 
         if (this.matches.length > 0) {
           this.activeMatch = this.matches[0];
@@ -240,7 +238,7 @@ export default {
       const text = this.newMessage.trim();
 
       try {
-        const res = await axios.post("/api/messages", {
+        const res = await axios.post("http://localhost:3000/api/messages", {
           match_id: this.activeMatch.id,
           sender_id: this.myProfileId,
           content: text,
@@ -266,15 +264,16 @@ export default {
 
       if (
         !confirm(
-          `Weet je zeker dat je de chat met ${match.name} permanent wilt verwijderen?`
+          `Weet je zeker dat je de chat met ${match.profile.name} permanent wilt verwijderen?`
         )
       ) {
         return;
       }
 
       try {
-        await axios.delete(`/api/matches/${match.id}`);
-        // door ON DELETE CASCADE in je SQL worden messages automatisch verwijderd
+        await axios.delete(
+          `http://localhost:3000/api/matches/${match.id}`
+        );
 
         this.matches = this.matches.filter((m) => m.id !== match.id);
         if (this.activeMatch?.id === match.id) {
@@ -283,6 +282,30 @@ export default {
       } catch (err) {
         console.error("Kon match niet verwijderen", err);
       }
+    },
+
+    formatLastOnline(ts) {
+      if (!ts) return "onbekend";
+
+      const d = new Date(ts);
+      const now = new Date();
+      const diffMs = now - d;
+      const diffMin = Math.floor(diffMs / 60000);
+      const diffH = Math.floor(diffMin / 60);
+      const diffD = Math.floor(diffH / 24);
+
+      if (diffMin < 1) return "zojuist";
+      if (diffMin < 60) return `${diffMin} min geleden`;
+      if (diffH < 24) return `${diffH} uur geleden`;
+      return `${diffD} dagen geleden`;
+    },
+
+    formatMessageTime(ts) {
+      if (!ts) return "";
+      const d = new Date(ts);
+      const h = d.getHours().toString().padStart(2, "0");
+      const m = d.getMinutes().toString().padStart(2, "0");
+      return `${h}:${m}`;
     },
 
     logout() {
@@ -304,7 +327,6 @@ export default {
   background: transparent;
 }
 
-/* Page layout gelijk aan Home.vue, maar selector = .chat-page */
 .chat-page {
   width: 100vw;
   height: 100vh;
@@ -461,7 +483,7 @@ export default {
   font-size: 0.8rem;
 }
 
-/* Content, gelijk aan Home.vue maar met chat-body erin */
+/* Content */
 .content {
   flex: 1;
   display: flex;
@@ -587,6 +609,7 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  background: linear-gradient(135deg, #ff5e7e 0%, #ff1e5a 100%);
 }
 
 .message {
@@ -600,12 +623,12 @@ export default {
 
 .message.me {
   align-self: flex-end;
-  background: #ff8cab;
+  background: #df406a;
 }
 
 .message.them {
   align-self: flex-start;
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(202, 58, 58, 0.3);
 }
 
 .msg-time {
@@ -640,7 +663,7 @@ input {
   cursor: pointer;
 }
 
-/* Responsive sidebar gedrag zoals Home.vue */
+/* Responsive gedrag zoals Home.vue */
 @media (max-width: 720px) {
   .sidebar {
     width: 200px;
