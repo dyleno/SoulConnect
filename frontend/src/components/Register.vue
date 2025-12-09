@@ -1,7 +1,5 @@
 <template>
   <section class="auth-container">
-
-    <!-- 🔥 Tinder-Style Header -->
     <header class="top-header" @click="$router.push('/')">
       <span class="logo">❤️ SoulConnect</span>
     </header>
@@ -10,6 +8,22 @@
       <h2>Registreren</h2>
 
       <form @submit.prevent="register">
+        <input
+          type="text"
+          v-model="name"
+          placeholder="Naam"
+          required
+        />
+
+        <input
+          type="number"
+          v-model.number="age"
+          placeholder="Leeftijd"
+          min="18"
+          max="120"
+          required
+        />
+
         <input
           type="email"
           v-model="email"
@@ -25,8 +39,20 @@
           required
         />
 
-        <button class="btn">Account aanmaken</button>
+        <button class="btn" :disabled="loading">
+          {{ loading ? "Bezig met registreren..." : "Account aanmaken" }}
+        </button>
       </form>
+
+      <!-- Foutmelding -->
+      <p v-if="errorMessage" class="error-text">
+        {{ errorMessage }}
+      </p>
+
+      <!-- Succesmelding (optioneel) -->
+      <p v-if="successMessage" class="success-text">
+        {{ successMessage }}
+      </p>
 
       <p class="register-text">
         Heb je al een account?
@@ -37,25 +63,56 @@
 </template>
 
 <script>
+import axios from "axios";
+
 export default {
   data() {
     return {
+      name: "",
+      age: "",
       email: "",
       password: "",
+      errorMessage: "",
+      successMessage: "",
+      loading: false,
     };
   },
   methods: {
-    register() {
-      console.log("Register attempt", this.email, this.password);
+    async register() {
+      this.errorMessage = "";
+      this.successMessage = "";
+      this.loading = true;
+
+      try {
+        const response = await axios.post("http://localhost:3000/register", {
+          name: this.name,
+          age: this.age,
+          email: this.email,
+          password: this.password,
+        });
+
+        // user opslaan (zodat je hem in Home kunt gebruiken)
+        localStorage.setItem("user", JSON.stringify(response.data.user));
+
+        this.successMessage =
+          response.data?.message || "Account succesvol aangemaakt!";
+
+        
+        this.$router.push("/home");
+      } catch (err) {
+        console.error(err);
+        this.errorMessage =
+          err?.response?.data?.message ||
+          "Registreren is mislukt. Probeer het opnieuw.";
+      } finally {
+        this.loading = false;
+      }
     },
   },
 };
 </script>
 
 <style scoped>
-/* ------------------------------------------------ */
-/* 🔥 Fullscreen Gradient Background */
-/* ------------------------------------------------ */
 .auth-container {
   display: flex;
   justify-content: center;
@@ -149,6 +206,11 @@ input:focus {
   box-shadow: 0 8px 25px rgba(255, 50, 90, 0.35);
 }
 
+.btn[disabled] {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .register-text {
   margin-top: 18px;
   font-size: 0.95rem;
@@ -164,11 +226,23 @@ input:focus {
 
 .register-link:hover {
   color: #ff2e6a !important;
-  text-shadow: 0 0 6px rgba(255, 50, 90, 0.4);
+  text-shadow: 0 0 15px rgba(255, 50, 90, 0.4);
 }
 
 .register-link:visited {
   color: #ff1e5a !important;
+}
+
+.error-text {
+  margin-top: 12px;
+  color: #e63946;
+  font-size: 0.9rem;
+}
+
+.success-text {
+  margin-top: 12px;
+  color: #2ecc71;
+  font-size: 0.9rem;
 }
 
 @keyframes fadeIn {
