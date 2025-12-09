@@ -14,9 +14,16 @@
       <aside class="sidebar">
         <div class="sidebar-user">
           <div class="sidebar-avatar">
-            <span class="sidebar-avatar-initial">
+            <!-- PROFIELFOTO IN SIDEBAR -->
+            <span class="sidebar-avatar-initial" v-if="!photoUrl">
               {{ avatarInitial }}
             </span>
+            <img
+              v-else
+              :src="photoUrl"
+              alt="Profielfoto"
+              class="sidebar-avatar-image"
+            />
           </div>
           <div class="sidebar-user-text">
             <div class="sidebar-user-name">{{ displayName }}</div>
@@ -86,11 +93,16 @@
 </template>
 
 <script>
+import axios from "axios";
+
+const API_BASE = "http://localhost:3000";
+
 export default {
   name: "Premium",
   data() {
     return {
       user: JSON.parse(localStorage.getItem("user")) || null,
+      photoUrl: "", // profielfoto in sidebar
     };
   },
   computed: {
@@ -103,7 +115,28 @@ export default {
       return n ? n.charAt(0).toUpperCase() : "S";
     },
   },
+  async mounted() {
+    if (!this.user) {
+      this.$router.push("/login");
+      return;
+    }
+    await this.loadMyPhoto();
+  },
   methods: {
+    async loadMyPhoto() {
+      if (!this.user?.profile_id) return;
+      try {
+        const res = await axios.get(
+          `${API_BASE}/api/photos/${this.user.profile_id}`
+        );
+        const data = res.data;
+        if (data && data.image_url) {
+          this.photoUrl = API_BASE + data.image_url;
+        }
+      } catch (e) {
+        console.warn("Geen profielfoto gevonden voor premium sidebar");
+      }
+    },
     logout() {
       localStorage.removeItem("user");
       this.$router.push("/login");
@@ -206,11 +239,18 @@ export default {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.25);
+  overflow: hidden;
 }
 
 .sidebar-avatar-initial {
   font-weight: 700;
   font-size: 1.1rem;
+}
+
+.sidebar-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .sidebar-user-text {

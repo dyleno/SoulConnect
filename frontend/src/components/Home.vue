@@ -14,9 +14,16 @@
       <aside class="sidebar">
         <div class="sidebar-user">
           <div class="sidebar-avatar">
-            <span class="sidebar-avatar-initial">
+            <!-- Foto van JOU in sidebar -->
+            <span class="sidebar-avatar-initial" v-if="!photoUrl">
               {{ avatarInitial }}
             </span>
+            <img
+              v-else
+              :src="photoUrl"
+              alt="Profielfoto"
+              class="sidebar-avatar-image"
+            />
           </div>
           <div class="sidebar-user-text">
             <div class="sidebar-user-name">{{ sidebarName }}</div>
@@ -66,43 +73,57 @@
             <!-- er is nog een profiel -->
             <div
               v-if="currentProfile"
-              class="card"
               :key="currentProfile.id"
+              :class="['card', { 'card--expanded': isExpanded }]"
+              @click="toggleExpand"
             >
               <div class="card-gradient"></div>
 
-              <div class="card-top">
-                <div class="avatar-circle">
-                  <span class="avatar-initial">
-                    {{ profileInitial }}
-                  </span>
+              <!-- Foto -->
+              <div class="photo-container">
+                <img
+                  v-if="currentProfile.photoUrl"
+                  :src="currentProfile.photoUrl"
+                  alt="Profielfoto"
+                  class="main-photo"
+                />
+                <div v-else class="photo-fallback">
+                  {{ profileInitial }}
                 </div>
               </div>
 
+              <!-- Info overlay -->
               <div class="card-info">
                 <h2 class="name-line">
                   {{ currentProfile.name }}
                   <span class="age">{{ currentProfile.age }}</span>
                 </h2>
-                <p class="tagline">
-                  {{ currentProfile.tagline }}
-                </p>
 
-                <div class="tags">
-                  <span
-                    v-for="tag in currentProfile.tags"
-                    :key="tag"
-                    class="tag"
-                  >
-                    {{ tag }}
-                  </span>
-                </div>
-              </div>
+                <!-- tagline + interesses alleen in normale mode -->
+                <div
+                  class="extra-info"
+                  :class="{ 'extra-info--hidden': isExpanded }"
+                >
+                  <p class="tagline">
+                    {{ currentProfile.tagline }}
+                  </p>
 
-              <div class="card-footer">
-                <div class="pill">
-                  Ingelogd als
-                  <span class="pill-email">{{ user?.email }}</span>
+                  <div class="tags">
+                    <span
+                      v-for="tag in currentProfile.tags"
+                      :key="tag"
+                      class="tag"
+                    >
+                      {{ tag }}
+                    </span>
+                  </div>
+
+                  <div class="card-footer">
+                    <div class="pill">
+                      Ingelogd als
+                      <span class="pill-email">{{ user?.email }}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -110,7 +131,7 @@
             <!-- alle profielen geswipet -->
             <div v-else class="card card--empty" key="no-profiles">
               <div class="card-gradient"></div>
-              <div class="card-info">
+              <div class="card-info card-info--empty">
                 <h2 class="name-line">Geen profielen meer</h2>
                 <p class="tagline">
                   Je hebt alle profielen geswipet 🎉
@@ -127,7 +148,7 @@
             <button
               class="circle-btn small undo"
               title="Terug"
-              @click="undoSwipe"
+              @click.stop="undoSwipe"
               :disabled="currentIndex === 0"
             >
               ↺
@@ -135,7 +156,7 @@
             <button
               class="circle-btn large nope"
               title="Geen interesse"
-              @click="swipe('nope')"
+              @click.stop="swipe('nope')"
               :disabled="!currentProfile"
             >
               ❌
@@ -143,7 +164,7 @@
             <button
               class="circle-btn large like"
               title="Like"
-              @click="swipe('like')"
+              @click.stop="swipe('like')"
               :disabled="!currentProfile"
             >
               ❤️
@@ -151,7 +172,7 @@
             <button
               class="circle-btn small superlike"
               title="Super like"
-              @click="swipe('superlike')"
+              @click.stop="swipe('superlike')"
               :disabled="!currentProfile"
             >
               ⭐
@@ -166,6 +187,8 @@
 <script>
 import axios from "axios";
 
+const API_BASE = "http://localhost:3000";
+
 export default {
   name: "HomePage",
   data() {
@@ -174,6 +197,8 @@ export default {
       profiles: [],
       currentIndex: 0,
       lastSwipe: "neutral",
+      photoUrl: "", // jouw eigen profielfoto in de sidebar
+      isExpanded: false, // kaart uitgeklapt of niet
     };
   },
   computed: {
@@ -208,7 +233,7 @@ export default {
 
     this.user = JSON.parse(stored);
 
-    await this.loadProfiles();
+    await Promise.all([this.loadProfiles(), this.loadMyPhoto()]);
   },
 
   methods: {
@@ -216,26 +241,73 @@ export default {
       if (!this.myProfileId) return;
 
       const res = await axios.get(
-        "http://localhost:3000/api/profiles/random?profile_id=" +
-          this.myProfileId
+        `${API_BASE}/api/profiles/random?profile_id=${this.myProfileId}`
       );
 
-      this.profiles = res.data.map((p) => ({
+      const basicProfiles = res.data.map((p) => ({
         ...p,
         tagline: p.bio || "Geen bio ingevuld",
-        tags: p.interests || [],
+        tags:
+          Array.isArray(p.interests) || p.interests instanceof Array
+            ? p.interests
+            : typeof p.interests === "string"
+            ? p.interests
+                .split(",")
+                .map((t) => t.trim())
+                .filter(Boolean)
+            : [],
+        photoUrl: null,
       }));
 
+      // voor elk profiel proberen we een foto op te halen
+      const profilesWithPhotos = await Promise.all(
+        basicProfiles.map(async (p) => {
+          try {
+            const photoRes = await axios.get(`${API_BASE}/api/photos/${p.id}`);
+            const data = photoRes.data;
+            if (data && data.image_url) {
+              return {
+                ...p,
+                photoUrl: API_BASE + data.image_url,
+              };
+            }
+          } catch (e) {
+            console.warn("Geen foto gevonden voor profiel", p.id);
+          }
+          return p;
+        })
+      );
+
+      this.profiles = profilesWithPhotos;
       this.currentIndex = 0;
+      this.isExpanded = false;
+    },
+
+    // jouw eigen foto voor de sidebar
+    async loadMyPhoto() {
+      if (!this.user?.profile_id) return;
+
+      try {
+        const photoRes = await axios.get(
+          `${API_BASE}/api/photos/${this.user.profile_id}`
+        );
+        const data = photoRes.data;
+        if (data && data.image_url) {
+          this.photoUrl = API_BASE + data.image_url;
+        }
+      } catch (e) {
+        console.warn("Geen foto gevonden voor jouw profiel");
+      }
     },
 
     async swipe(action) {
       if (!this.currentProfile) return;
 
       this.lastSwipe = action;
+      this.isExpanded = false; // terug naar normale view bij swipe
 
       if ((action === "like" || action === "superlike") && this.myProfileId) {
-        await axios.post("http://localhost:3000/api/matches", {
+        await axios.post(`${API_BASE}/api/matches`, {
           profile_id_1: this.myProfileId,
           profile_id_2: this.currentProfile.id,
         });
@@ -248,7 +320,13 @@ export default {
       if (this.currentIndex > 0) {
         this.lastSwipe = "neutral";
         this.currentIndex--;
+        this.isExpanded = false;
       }
+    },
+
+    toggleExpand() {
+      if (!this.currentProfile) return;
+      this.isExpanded = !this.isExpanded;
     },
 
     logout() {
@@ -279,10 +357,7 @@ export default {
   font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   overflow: hidden;
 }
 
@@ -355,11 +430,18 @@ export default {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.25);
+  overflow: hidden;
 }
 
 .sidebar-avatar-initial {
   font-weight: 700;
   font-size: 1.1rem;
+}
+
+.sidebar-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .sidebar-user-text {
@@ -465,58 +547,88 @@ export default {
   border-radius: 30px;
   overflow: hidden;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  cursor: zoom-in;
+  transform-origin: center;
+  transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1),
+    box-shadow 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.card:not(.card--expanded):hover {
+  transform: translateY(-6px) scale(1.03);
+  box-shadow: 0 22px 52px rgba(0, 0, 0, 0.45);
+}
+
+.card--expanded {
+  transform: translateY(-14px) scale(1.1);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.6);
+  cursor: zoom-out;
 }
 
 .card--empty {
-  justify-content: flex-end;
+  cursor: default;
 }
 
 .card-gradient {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 10% 0%, #ffb6c9 0, transparent 50%),
-    radial-gradient(circle at 90% 0%, #ffd1dc 0, transparent 55%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.2), #000);
+  background: radial-gradient(circle at 10% 0%, #ffb6c9 0, transparent 55%),
+    radial-gradient(circle at 90% 0%, #ffd1dc 0, transparent 60%);
   z-index: 0;
 }
 
-.card-top {
-  position: relative;
-  padding: 18px 18px 0;
-  display: flex;
-  justify-content: flex-start;
+/* Foto */
+.photo-container {
+  position: absolute;
+  inset: 0;
   z-index: 1;
+  overflow: hidden;
 }
 
-.avatar-circle {
-  width: 72px;
-  height: 72px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.45);
-  border: 3px solid rgba(255, 255, 255, 0.7);
+.main-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.card--expanded .main-photo {
+  transform: scale(1.08);
+}
+
+.photo-fallback {
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  font-size: 3rem;
+  font-weight: 900;
+  background: rgba(0, 0, 0, 0.4);
 }
 
-.avatar-initial {
-  font-size: 2.1rem;
-  font-weight: 800;
-}
-
+/* Info overlay (kleine, lage zwarte balk) */
 .card-info {
-  position: relative;
-  padding: 18px 20px;
-  margin-top: auto;
-  z-index: 1;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 16px 20px 14px;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.55) 35%,
+    rgba(0, 0, 0, 0.9) 100%
+  );
+  z-index: 2;
 }
 
+.card-info--empty {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+/* alleen naam + leeftijd blijven in expanded mode */
 .name-line {
-  font-size: 1.9rem;
+  font-size: 1.6rem;
   font-weight: 800;
   letter-spacing: -0.03em;
   display: flex;
@@ -525,45 +637,54 @@ export default {
 }
 
 .age {
-  font-size: 1.4rem;
+  font-size: 1.25rem;
   font-weight: 600;
 }
 
-.tagline {
+/* tagline/interesses/fp info blok */
+.extra-info {
   margin-top: 6px;
-  font-size: 0.98rem;
-  opacity: 0.92;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.extra-info--hidden {
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+}
+
+.tagline {
+  font-size: 0.9rem;
+  opacity: 0.9;
 }
 
 .tags {
-  margin-top: 12px;
+  margin-top: 8px;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .tag {
-  font-size: 0.78rem;
-  padding: 4px 10px;
+  font-size: 0.72rem;
+  padding: 3px 9px;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.45);
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .card-footer {
-  position: relative;
-  padding: 10px 20px 18px;
-  z-index: 1;
+  margin-top: 10px;
 }
 
 .pill {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.8rem;
-  padding: 6px 12px;
+  gap: 6px;
+  font-size: 0.7rem;
+  padding: 5px 10px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
@@ -636,7 +757,7 @@ export default {
   box-shadow: none;
 }
 
-/* TRANSITIONS */
+/* TRANSITIONS tussen profielen */
 .card-swipe-enter-active,
 .card-swipe-leave-active {
   transition: all 0.35s ease;

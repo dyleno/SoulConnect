@@ -14,9 +14,15 @@
       <aside class="sidebar">
         <div class="sidebar-user">
           <div class="sidebar-avatar">
-            <span class="sidebar-avatar-initial">
+            <span class="sidebar-avatar-initial" v-if="!photoUrl">
               {{ avatarInitial }}
             </span>
+            <img
+              v-else
+              :src="photoUrl"
+              alt="Profielfoto"
+              class="sidebar-avatar-image"
+            />
           </div>
           <div class="sidebar-user-text">
             <div class="sidebar-user-name">{{ sidebarName }}</div>
@@ -88,7 +94,15 @@
             <!-- NAAM -->
             <div class="field">
               <label>Naam</label>
-              <input type="text" v-model="form.name" />
+              <input
+                type="text"
+                v-model="form.name"
+                :disabled="nameChangeBlocked"
+              />
+              <p v-if="nameChangeBlocked" class="cooldown-text">
+                Je hebt je naam recent gewijzigd. Je kunt je naam opnieuw wijzigen op
+                <strong>{{ nameChangeAvailableAtFormatted }}</strong>.
+              </p>
             </div>
 
             <!-- LOCATIE -->
@@ -132,6 +146,9 @@
 <script>
 import axios from "axios";
 
+const NAME_COOLDOWN_KEY = "lastNameChangeAt";
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
 export default {
   name: "SettingsPage",
 
@@ -158,13 +175,14 @@ export default {
       ],
       message: "",
       photoUrl: "",
+      originalName: "",        // naam zoals uit backend geladen
+      lastNameChangeAt: null,  // timestamp (ms sinds epoch)
     };
   },
 
   computed: {
     sidebarName() {
       if (!this.user) return "Gebruiker";
-      // live naam uit form, anders uit user
       return (
         this.form.name ||
         this.user.name ||
@@ -176,44 +194,83 @@ export default {
       const n = this.sidebarName;
       return n ? n.charAt(0).toUpperCase() : "G";
     },
+
+    // true = naam mag nu NIET gewijzigd worden
+    nameChangeBlocked() {
+      if (!this.lastNameChangeAt) return false;
+      const diff = Date.now() - this.lastNameChangeAt;
+      return diff < SEVEN_DAYS_MS;
+    },
+
+    // Datum/tijd waarop naam weer gewijzigd mag worden
+    nameChangeAvailableAtFormatted() {
+      if (!this.lastNameChangeAt) return "";
+      const availableAt = new Date(this.lastNameChangeAt + SEVEN_DAYS_MS);
+      const dd = availableAt.getDate().toString().padStart(2, "0");
+      const mm = (availableAt.getMonth() + 1).toString().padStart(2, "0");
+      const yyyy = availableAt.getFullYear();
+      const hh = availableAt.getHours().toString().padStart(2, "0");
+      const min = availableAt.getMinutes().toString().padStart(2, "0");
+      return `${dd}-${mm}-${yyyy} ${hh}:${min}`;
+    },
   },
 
   async mounted() {
     const stored = localStorage.getItem("user");
     if (!stored) return this.$router.push("/login");
     this.user = JSON.parse(stored);
+
+    // cooldown uit localStorage oppakken
+    const storedCooldown = localStorage.getItem(NAME_COOLDOWN_KEY);
+    if (storedCooldown) {
+      const ts = parseInt(storedCooldown, 10);
+      if (!Number.isNaN(ts)) {
+        this.lastNameChangeAt = ts;
+      }
+    }
+
     await this.loadProfile();
   },
 
   methods: {
     async loadProfile() {
-      const res = await axios.get(
-        "http://localhost:3000/api/profiles/" + this.user.profile_id
-      );
-      const p = res.data;
+      try {
+        // Profiel ophalen
+        const res = await axios.get(
+          "http://localhost:3000/api/profiles/" + this.user.profile_id
+        );
+        const p = res.data;
 
-      this.form.name = p.name || "";
-      this.form.location = p.location || "";
-      this.form.bio = p.bio || "";
-      this.form.interests =
-        typeof p.interests === "string"
+        this.form.name = p.name || "";
+        this.form.location = p.location || "";
+        this.form.bio = p.bio || "";
+        this.form.interests = Array.isArray(p.interests)
+          ? p.interests
+          : typeof p.interests === "string"
           ? p.interests
               .split(",")
               .map((t) => t.trim())
               .filter(Boolean)
-          : p.interests || [];
+          : [];
 
-      // profielfoto ophalen
-      try {
-        const photoRes = await axios.get(
-          "http://localhost:3000/api/photos/" + this.user.profile_id
-        );
-        const data = photoRes.data;
-        if (data) {
-          this.photoUrl = Array.isArray(data) ? data[0]?.image_url : data.image_url;
+        // originele naam bewaren voor vergelijking
+        this.originalName = this.form.name;
+
+        // Profielfoto ophalen
+        try {
+          const photoRes = await axios.get(
+            "http://localhost:3000/api/photos/" + this.user.profile_id
+          );
+          const data = photoRes.data;
+          if (data && data.image_url) {
+            // backend geeft bv. "/uploads/xxx.png" → host ervoor plakken
+            this.photoUrl = "http://localhost:3000" + data.image_url;
+          }
+        } catch (e) {
+          console.warn("Geen foto gevonden voor dit profiel");
         }
-      } catch (e) {
-        console.warn("Geen foto gevonden");
+      } catch (err) {
+        console.error(err);
       }
     },
 
@@ -226,16 +283,41 @@ export default {
     },
 
     async saveSettings() {
-      await axios.put(
-        "http://localhost:3000/api/profiles/" + this.user.profile_id,
-        {
-          ...this.form,
-          interests: this.form.interests.join(","),
-        }
-      );
+      try {
+        const nameChanged = this.form.name !== this.originalName;
 
-      this.message = "Instellingen succesvol opgeslagen! 💖";
-      setTimeout(() => (this.message = ""), 2000);
+        // Als de naam gewijzigd is én er is nog cooldown → blokkeren
+        if (nameChanged && this.nameChangeBlocked) {
+          this.message = `Je kunt je naam pas op ${this.nameChangeAvailableAtFormatted} weer wijzigen.`;
+          setTimeout(() => (this.message = ""), 3000);
+          // Naam niet opslaan, andere velden eventueel óók niet
+          // (wil je andere velden wel laten saven, moet je dit slimmer splitsen)
+          return;
+        }
+
+        await axios.put(
+          "http://localhost:3000/api/profiles/" + this.user.profile_id,
+          {
+            ...this.form,
+            interests: this.form.interests.join(","),
+          }
+        );
+
+        // Als de naam écht veranderd is en er was géén cooldown → nu cooldown starten
+        if (nameChanged) {
+          const now = Date.now();
+          this.lastNameChangeAt = now;
+          localStorage.setItem(NAME_COOLDOWN_KEY, String(now));
+          this.originalName = this.form.name;
+        }
+
+        this.message = "Instellingen succesvol opgeslagen! 💖";
+        setTimeout(() => (this.message = ""), 2000);
+      } catch (err) {
+        console.error(err);
+        this.message = "Er ging iets mis bij het opslaan.";
+        setTimeout(() => (this.message = ""), 2000);
+      }
     },
 
     triggerFile() {
@@ -247,16 +329,24 @@ export default {
       if (!file) return;
 
       const fd = new FormData();
-      fd.append("image", file);
+      fd.append("image", file); // MOET "image" heten → upload.single("image")
       fd.append("profile_id", this.user.profile_id);
 
-      const res = await axios.post(
-        "http://localhost:3000/api/photos/upload",
-        fd,
-        { headers: { "Content-Type": "multipart/form-data" } }
-      );
+      try {
+        const res = await axios.post(
+          "http://localhost:3000/api/photos/upload",
+          fd,
+          { headers: { "Content-Type": "multipart/form-data" } }
+        );
 
-      this.photoUrl = res.data.image_url;
+        if (res.data && res.data.image_url) {
+          this.photoUrl = "http://localhost:3000" + res.data.image_url;
+        }
+      } catch (err) {
+        console.error(err);
+        this.message = "Uploaden van foto is mislukt.";
+        setTimeout(() => (this.message = ""), 2000);
+      }
     },
 
     logout() {
@@ -273,11 +363,10 @@ export default {
   padding: 0;
   height: 100%;
   width: 100%;
-  overflow: hidden; /* geen globale scrollbars, we scrollen in content-main */
+  overflow: hidden;
   background: transparent;
 }
 
-/* zelfde basis als home.vue */
 .home {
   width: 100vw;
   height: 100vh;
@@ -361,11 +450,18 @@ export default {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.25);
+  overflow: hidden;
 }
 
 .sidebar-avatar-initial {
   font-weight: 700;
   font-size: 1.1rem;
+}
+
+.sidebar-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .sidebar-user-text {
@@ -452,7 +548,7 @@ export default {
   background: rgba(0, 0, 0, 0.18);
 }
 
-/* HIER scrollen we */
+/* hoofd content scrollt */
 .content-main {
   flex: 1;
   display: flex;
@@ -460,7 +556,7 @@ export default {
   justify-content: center;
   padding: 20px 16px 32px;
   min-height: 0;
-  overflow-y: auto; /* vertical scroll */
+  overflow-y: auto;
 }
 
 /* settings card */
@@ -471,7 +567,7 @@ export default {
   border-radius: 26px;
   backdrop-filter: blur(10px);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-  animation: fadeSlide 0.8s,ease-out;
+  animation: fadeSlide 0.8s ease-out;
 }
 
 @keyframes fadeSlide {
@@ -572,6 +668,17 @@ textarea:focus {
   border-color: #ff1e5a;
   box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
   outline: none;
+}
+
+/* cooldown tekst */
+.cooldown-text {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: #ffe0e9;
+}
+
+.cooldown-text strong {
+  font-weight: 700;
 }
 
 .interests-label {

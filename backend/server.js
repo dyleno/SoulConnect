@@ -3,6 +3,7 @@ import cors from "cors";
 import bcrypt from "bcrypt";
 import multer from "multer";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import pool from "./db.js";
 
@@ -13,8 +14,19 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// uploads map statisch maken zodat de browser de images kan zien
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+/* ============================================================
+   UPLOAD MAP AANMAKEN + STATISCH MAKEN
+============================================================ */
+const uploadDir = path.join(__dirname, "uploads");
+
+// als de uploads map nog niet bestaat → maak 'm aan
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+  console.log("Uploads map aangemaakt:", uploadDir);
+}
+
+// static, zodat je via http://localhost:3000/uploads/... de foto's kan zien
+app.use("/uploads", express.static(uploadDir));
 
 console.log("SERVER STARTED:", new Date().toLocaleTimeString());
 
@@ -23,7 +35,7 @@ console.log("SERVER STARTED:", new Date().toLocaleTimeString());
 ============================================================ */
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, "uploads"));
+    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
@@ -271,33 +283,33 @@ app.get("/api/photos/:profileId", async (req, res) => {
 });
 
 // Nieuwe foto uploaden
-app.post(
-  "/api/photos/upload",
-  upload.single("image"),
-  async (req, res) => {
-    const { profile_id } = req.body;
+app.post("/api/photos/upload", upload.single("image"), async (req, res) => {
+  const { profile_id } = req.body;
 
-    if (!req.file || !profile_id) {
-      return res
-        .status(400)
-        .json({ message: "image en profile_id zijn verplicht" });
-    }
+  console.log("UPLOAD BODY:", req.body);
+  console.log("UPLOAD FILE:", req.file);
 
-    const imageUrl = `/uploads/${req.file.filename}`;
-
-    const [result] = await pool.query(
-      `INSERT INTO photos (profile_id, image_url)
-       VALUES (?, ?)`,
-      [profile_id, imageUrl]
-    );
-
-    res.json({
-      id: result.insertId,
-      profile_id,
-      image_url: imageUrl,
-    });
+  if (!req.file || !profile_id) {
+    return res
+      .status(400)
+      .json({ message: "image en profile_id zijn verplicht" });
   }
-);
+
+  // We slaan relatief pad op, bv. /uploads/profile-123.png
+  const imageUrl = `/uploads/${req.file.filename}`;
+
+  const [result] = await pool.query(
+    `INSERT INTO photos (profile_id, image_url)
+       VALUES (?, ?)`,
+    [profile_id, imageUrl]
+  );
+
+  res.json({
+    id: result.insertId,
+    profile_id,
+    image_url: imageUrl,
+  });
+});
 
 /* ============================================================
    MATCH AANMAKEN

@@ -14,9 +14,16 @@
       <aside class="sidebar">
         <div class="sidebar-user">
           <div class="sidebar-avatar">
-            <span class="sidebar-avatar-initial">
+            <!-- FOTO ALS DIE BESTAAT, ANDERS INITIAAL -->
+            <span class="sidebar-avatar-initial" v-if="!photoUrl">
               {{ avatarInitial }}
             </span>
+            <img
+              v-else
+              :src="photoUrl"
+              alt="Profielfoto"
+              class="sidebar-avatar-image"
+            />
           </div>
           <div class="sidebar-user-text">
             <div class="sidebar-user-name">{{ sidebarName }}</div>
@@ -75,7 +82,16 @@
               @click="selectMatch(m)"
             >
               <div class="match-avatar">
-                {{ m.profile.name.charAt(0).toUpperCase() }}
+                <!-- FOTO VAN ANDER PROFIEL OF INITIAAL -->
+                <img
+                  v-if="m.profile.photoUrl"
+                  :src="m.profile.photoUrl"
+                  alt="Profielfoto"
+                  class="match-avatar-img"
+                />
+                <span v-else>
+                  {{ m.profile.name.charAt(0).toUpperCase() }}
+                </span>
               </div>
               <div class="match-info">
                 <div class="match-name">
@@ -98,7 +114,16 @@
             <template v-if="activeMatch">
               <div class="chat-header">
                 <div class="chat-avatar">
-                  {{ activeMatch.profile.name.charAt(0).toUpperCase() }}
+                  <!-- FOTO VAN ANDER PROFIEL OF INITIAAL -->
+                  <img
+                    v-if="activeMatch.profile.photoUrl"
+                    :src="activeMatch.profile.photoUrl"
+                    alt="Profielfoto"
+                    class="chat-avatar-img"
+                  />
+                  <span v-else>
+                    {{ activeMatch.profile.name.charAt(0).toUpperCase() }}
+                  </span>
                 </div>
                 <div class="chat-user">
                   <div class="chat-name">
@@ -161,6 +186,8 @@
 <script>
 import axios from "axios";
 
+const API_BASE = "http://localhost:3000";
+
 export default {
   name: "ChatPage",
   data() {
@@ -169,6 +196,7 @@ export default {
       newMessage: "",
       matches: [], // [{ id, profile: {...}, messages: [...] }]
       activeMatch: null,
+      photoUrl: "", // profielfoto in sidebar
     };
   },
   computed: {
@@ -197,19 +225,20 @@ export default {
       console.error("Geen profile_id gevonden voor user");
       return;
     }
-    await this.fetchMatches();
+
+    // Matches én eigen foto ophalen
+    await Promise.all([this.fetchMatches(), this.loadPhoto()]);
   },
   methods: {
     async fetchMatches() {
       try {
-        const res = await axios.get("http://localhost:3000/api/matches", {
+        const res = await axios.get(`${API_BASE}/api/matches`, {
           params: { profile_id: this.myProfileId },
         });
 
-        // Backend geeft: [{ id, profile: {...}, messages: [...] }]
-        this.matches = res.data.map((m) => ({
+        const baseMatches = res.data.map((m) => ({
           id: m.id,
-          profile: m.profile,
+          profile: m.profile, // hier voegen we straks photoUrl aan toe
           messages: (m.messages || []).map((msg) => ({
             id: msg.id,
             text: msg.content,
@@ -218,11 +247,49 @@ export default {
           })),
         }));
 
+        // Voor elke match de profielfoto ophalen
+        const matchesWithPhotos = await Promise.all(
+          baseMatches.map(async (m) => {
+            try {
+              const photoRes = await axios.get(
+                `${API_BASE}/api/photos/${m.profile.id}`
+              );
+              const data = photoRes.data;
+              if (data && data.image_url) {
+                m.profile.photoUrl = API_BASE + data.image_url;
+              }
+            } catch (e) {
+              console.warn("Geen foto voor match-profiel", m.profile.id);
+              m.profile.photoUrl = null;
+            }
+            return m;
+          })
+        );
+
+        this.matches = matchesWithPhotos;
+
         if (this.matches.length > 0) {
           this.activeMatch = this.matches[0];
         }
       } catch (err) {
         console.error("Kon matches niet ophalen", err);
+      }
+    },
+
+    // eigen foto voor sidebar
+    async loadPhoto() {
+      if (!this.user?.profile_id) return;
+
+      try {
+        const photoRes = await axios.get(
+          `${API_BASE}/api/photos/${this.user.profile_id}`
+        );
+        const data = photoRes.data;
+        if (data && data.image_url) {
+          this.photoUrl = API_BASE + data.image_url;
+        }
+      } catch (e) {
+        console.warn("Geen foto gevonden voor dit profiel");
       }
     },
 
@@ -238,7 +305,7 @@ export default {
       const text = this.newMessage.trim();
 
       try {
-        const res = await axios.post("http://localhost:3000/api/messages", {
+        const res = await axios.post(`${API_BASE}/api/messages`, {
           match_id: this.activeMatch.id,
           sender_id: this.myProfileId,
           content: text,
@@ -271,9 +338,7 @@ export default {
       }
 
       try {
-        await axios.delete(
-          `http://localhost:3000/api/matches/${match.id}`
-        );
+        await axios.delete(`${API_BASE}/api/matches/${match.id}`);
 
         this.matches = this.matches.filter((m) => m.id !== match.id);
         if (this.activeMatch?.id === match.id) {
@@ -410,11 +475,19 @@ export default {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.25);
+  overflow: hidden;
 }
 
 .sidebar-avatar-initial {
   font-weight: 700;
   font-size: 1.1rem;
+}
+
+/* FOTO in sidebar */
+.sidebar-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .sidebar-user-text {
@@ -547,6 +620,14 @@ export default {
   justify-content: center;
   font-weight: 700;
   font-size: 1.1rem;
+  overflow: hidden;
+}
+
+/* FOTO bij match */
+.match-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .match-info {
@@ -587,6 +668,14 @@ export default {
   font-size: 1.3rem;
   font-weight: 700;
   margin-right: 10px;
+  overflow: hidden;
+}
+
+/* FOTO in chat header */
+.chat-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .delete-chat-btn {
