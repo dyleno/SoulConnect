@@ -5,6 +5,8 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import http from "http";
+import { Server } from "socket.io";
 import pool from "./db.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -19,13 +21,11 @@ app.use(express.json());
 ============================================================ */
 const uploadDir = path.join(__dirname, "uploads");
 
-// als de uploads map nog niet bestaat → maak 'm aan
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
   console.log("Uploads map aangemaakt:", uploadDir);
 }
 
-// static, zodat je via http://localhost:3000/uploads/... de foto's kan zien
 app.use("/uploads", express.static(uploadDir));
 
 console.log("SERVER STARTED:", new Date().toLocaleTimeString());
@@ -44,6 +44,72 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
+
+/* ============================================================
+   HTTP SERVER + SOCKET.IO
+============================================================ */
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:5173", // jouw frontend (Vite)
+    methods: ["GET", "POST"],
+  },
+});
+
+/* Helper: bericht aanmaken in DB + last_online updaten */
+async function createMessage({ match_id, sender_id, content }) {
+  const [result] = await pool.query(
+    `INSERT INTO messages (match_id, sender_id, content)
+     VALUES (?, ?, ?)`,
+    [match_id, sender_id, content]
+  );
+
+  // SENDER is actief → last_online nu
+  await pool.query(
+    `UPDATE profiles SET last_online = NOW()
+     WHERE id = ?`,
+    [sender_id]
+  );
+
+  const [rows] = await pool.query(
+    `SELECT id, match_id, sender_id, content, created_at
+     FROM messages
+     WHERE id = ?`,
+    [result.insertId]
+  );
+
+  return rows[0];
+}
+
+/* SOCKET.IO EVENTS */
+io.on("connection", (socket) => {
+  console.log("Socket connected:", socket.id);
+
+  socket.on("join_match", (matchId) => {
+    if (!matchId) return;
+    socket.join(`match_${matchId}`);
+  });
+
+  socket.on("leave_match", (matchId) => {
+    if (!matchId) return;
+    socket.leave(`match_${matchId}`);
+  });
+
+  socket.on("send_message", async (payload) => {
+    try {
+      const msg = await createMessage(payload);
+      io.to(`match_${payload.match_id}`).emit("message_created", msg);
+    } catch (err) {
+      console.error("Fout bij send_message:", err);
+      socket.emit("message_error", { error: "Kon bericht niet opslaan" });
+    }
+  });
+
+  socket.on("disconnect", () => {
+    console.log("Socket disconnected:", socket.id);
+  });
+});
 
 /* ============================================================
    LOGIN
@@ -84,6 +150,16 @@ app.post("/login", async (req, res) => {
       .status(401)
       .json({ success: false, message: "Wachtwoord onjuist" });
 
+  // ✅ LOGIN = ONLINE
+  if (dbUser.profile_id) {
+    await pool.query(
+      `UPDATE profiles
+       SET last_online = NOW()
+       WHERE id = ?`,
+      [dbUser.profile_id]
+    );
+  }
+
   // leeftijd
   let age = null;
   if (dbUser.birthdate) {
@@ -105,7 +181,7 @@ app.post("/login", async (req, res) => {
       gender: dbUser.gender,
       interests: dbUser.interests?.split(",") || [],
       location: dbUser.location,
-      last_online: dbUser.last_online,
+      last_online: new Date(), // is net geüpdatet
       birthdate: dbUser.birthdate,
     },
   });
@@ -151,6 +227,7 @@ app.post("/register", async (req, res) => {
       interests: interests.split(","),
       location,
       birthdate,
+      last_online: new Date(),
     },
   });
 });
@@ -295,7 +372,6 @@ app.post("/api/photos/upload", upload.single("image"), async (req, res) => {
       .json({ message: "image en profile_id zijn verplicht" });
   }
 
-  // We slaan relatief pad op, bv. /uploads/profile-123.png
   const imageUrl = `/uploads/${req.file.filename}`;
 
   const [result] = await pool.query(
@@ -340,6 +416,16 @@ app.post("/api/matches", async (req, res) => {
 ============================================================ */
 app.get("/api/matches", async (req, res) => {
   const { profile_id } = req.query;
+
+  // ✅ Chat openen = last_online refreshen voor jezelf
+  if (profile_id) {
+    await pool.query(
+      `UPDATE profiles
+       SET last_online = NOW()
+       WHERE id = ?`,
+      [profile_id]
+    );
+  }
 
   const [matches] = await pool.query(
     `SELECT 
@@ -397,25 +483,22 @@ app.get("/api/matches", async (req, res) => {
 });
 
 /* ============================================================
-   BERICHT STUREN
+   BERICHT STUREN (REST FALLBACK)
 ============================================================ */
 app.post("/api/messages", async (req, res) => {
   const { match_id, sender_id, content } = req.body;
 
-  const [result] = await pool.query(
-    `INSERT INTO messages (match_id, sender_id, content)
-     VALUES (?, ?, ?)`,
-    [match_id, sender_id, content]
-  );
+  try {
+    const msg = await createMessage({ match_id, sender_id, content });
 
-  const [msg] = await pool.query(
-    `SELECT id, match_id, sender_id, content, created_at
-     FROM messages
-     WHERE id = ?`,
-    [result.insertId]
-  );
+    // ook via socket naar room sturen
+    io.to(`match_${match_id}`).emit("message_created", msg);
 
-  res.json(msg[0]);
+    res.json(msg);
+  } catch (err) {
+    console.error("Fout in /api/messages:", err);
+    res.status(500).json({ message: "Kon bericht niet opslaan" });
+  }
 });
 
 /* ============================================================
@@ -433,6 +516,6 @@ app.delete("/api/matches/:id", async (req, res) => {
 /* ============================================================
    SERVER START
 ============================================================ */
-app.listen(3000, () =>
+server.listen(3000, () =>
   console.log("SERVER RUNNING → http://localhost:3000")
 );
