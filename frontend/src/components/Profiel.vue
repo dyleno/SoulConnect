@@ -1,11 +1,9 @@
 <template>
   <section class="profile-page">
-    <!-- TERUG BUTTON BOVEN SCHERM -->
-    <button class="back-btn" @click="$router.back()">
-      ← Terug
-    </button>
+    <!-- TERUG BUTTON -->
+    <button class="back-btn" @click="$router.back()">← Terug</button>
 
-    <!-- Floating hearts -->
+    <!-- hearts -->
     <div class="heart-animation">
       <span
         v-for="(h, i) in 7"
@@ -17,112 +15,111 @@
       </span>
     </div>
 
-    <div class="profile-card pop-in">
-      <!-- JOUW SWIPE-KAART -->
-      <div class="card">
-        <div class="card-gradient"></div>
+    <!-- Center area zoals Home content-main -->
+    <transition name="page-enter" appear>
+      <section class="content-main">
+        <!-- KAART (zelfde als Home) -->
+        <div class="card" @click="triggerFile">
+          <div class="card-gradient"></div>
 
-        <!-- FOTO’S BOVENIN (grote kaartfoto) -->
-        <div class="photo-container" @click="triggerFile">
-          <img
-            v-if="currentPhotoUrl"
-            :src="currentPhotoUrl"
-            alt="Profielfoto"
-            class="main-photo"
-          />
-          <div v-else class="photo-fallback">
-            {{ initial }}
+          <!-- Foto (full cover) -->
+          <div class="photo-container">
+            <img
+              v-if="currentPhotoUrl"
+              :src="currentPhotoUrl"
+              alt="Profielfoto"
+              class="main-photo"
+            />
+            <div v-else class="photo-fallback">{{ initial }}</div>
+
+            <!-- NAV arrows -->
+            <button
+              v-if="photos.length > 1"
+              class="photo-nav left"
+              @click.stop="prevPhoto"
+              aria-label="Vorige foto"
+            >
+              ‹
+            </button>
+            <button
+              v-if="photos.length > 1"
+              class="photo-nav right"
+              @click.stop="nextPhoto"
+              aria-label="Volgende foto"
+            >
+              ›
+            </button>
           </div>
 
-          <!-- NAVIGATIE TUSSEN FOTO'S -->
-          <button
-            v-if="photos.length > 1"
-            class="photo-nav left"
-            @click.stop="prevPhoto"
-          >
-            ‹
-          </button>
-          <button
-            v-if="photos.length > 1"
-            class="photo-nav right"
-            @click.stop="nextPhoto"
-          >
-            ›
-          </button>
-        </div>
+          <!-- Info overlay (exact Home vibe) -->
+          <div class="card-info">
+            <h2 class="name-line">
+              {{ displayName }}
+              <span class="age" v-if="age">{{ age }}</span>
+            </h2>
 
-        <!-- INFO ONDERIN KAART -->
-        <div class="card-info">
-          <h2 class="name-line">
-            {{ displayName }}
-            <span class="age" v-if="age">{{ age }}</span>
-          </h2>
+            <p class="tagline">
+              {{ profile.bio || "Nog geen bio ingevuld." }}
+            </p>
 
-          <p class="tagline">
-            {{ profile.bio || "Nog geen bio ingevuld." }}
-          </p>
-
-          <div class="info-list">
-            <div class="info-line">
-              📍 {{ displayLocation }}
+            <div class="info-list">
+              <div class="info-line">📍 {{ displayLocation }}</div>
+              <div class="info-line">⚧ {{ displayGender }}</div>
             </div>
-            <div class="info-line">
-              ⚧ {{ displayGender }}
+
+            <div class="tags" v-if="profile.interests?.length">
+              <span class="tag" v-for="tag in profile.interests" :key="tag">
+                {{ tag }}
+              </span>
+            </div>
+
+            <div class="card-footer">
+              <div class="pill">
+                Klik op je foto om nieuwe foto's te uploaden
+              </div>
             </div>
           </div>
+        </div>
 
-          <div class="tags" v-if="profile.interests?.length">
-            <span class="tag" v-for="tag in profile.interests" :key="tag">
-              {{ tag }}
-            </span>
+        <!-- verborgen file input -->
+        <input
+          ref="fileInput"
+          type="file"
+          accept="image/*"
+          multiple
+          class="hidden-input"
+          @change="onFileChange"
+        />
+
+        <!-- Dots onder kaart -->
+        <div v-if="photos.length > 1" class="photo-dots">
+          <span
+            v-for="(p, i) in photos"
+            :key="i"
+            class="dot"
+            :class="{ active: i === activePhotoIndex }"
+            @click="setPhoto(i)"
+          ></span>
+        </div>
+
+        <!-- Thumbnails -->
+        <div v-if="photos.length" class="thumbs">
+          <div
+            v-for="(p, i) in photos"
+            :key="i"
+            class="thumb"
+            :class="{ active: i === activePhotoIndex }"
+            @click="setPhoto(i)"
+          >
+            <img :src="p" alt="Thumbnail" />
           </div>
         </div>
 
-        <div class="card-footer">
-          <div class="pill">
-            Klik op je foto om nieuwe foto's te uploaden
-          </div>
-        </div>
-      </div>
-
-      <!-- verborgen file input -->
-      <input
-        ref="fileInput"
-        type="file"
-        accept="image/*"
-        multiple
-        class="hidden-input"
-        @change="onFileChange"
-      />
-
-      <!-- Dots onder kaart voor foto’s -->
-      <div v-if="photos.length > 1" class="photo-dots">
-        <span
-          v-for="(p, i) in photos"
-          :key="i"
-          class="dot"
-          :class="{ active: i === activePhotoIndex }"
-          @click="setPhoto(i)"
-        ></span>
-      </div>
-
-      <!-- Thumbnails -->
-      <div v-if="photos.length" class="thumbs">
-        <div
-          v-for="(p, i) in photos"
-          :key="i"
-          class="thumb"
-          :class="{ active: i === activePhotoIndex }"
-          @click="setPhoto(i)"
-        >
-          <img :src="p" alt="Thumbnail" />
-        </div>
-      </div>
-
-      <button class="edit-btn" @click="$router.push('/instellingen')">
-        ✏ Profiel bewerken
-      </button>
-    </div>
+        <button class="edit-btn" @click="$router.push('/instellingen')">
+          ✏ Profiel bewerken
+        </button>
+      </section>
+    </transition>
   </section>
 </template>
 
@@ -138,7 +135,7 @@ export default {
     return {
       user: null,
       profile: {},
-      photoUrl: "", // hoofdfoto
+      photoUrl: "",
       photos: [],
       activePhotoIndex: 0,
     };
@@ -233,7 +230,7 @@ export default {
     },
 
     triggerFile() {
-      this.$refs.fileInput.click();
+      this.$refs.fileInput?.click();
     },
 
     async onFileChange(e) {
@@ -253,7 +250,6 @@ export default {
           if (res.data && res.data.image_url) {
             const url = API_BASE + res.data.image_url;
             this.photos.push(url);
-            this.photoUrl = this.photos[0];
             this.activePhotoIndex = this.photos.length - 1;
           }
         } catch (err) {
@@ -266,15 +262,13 @@ export default {
 
     nextPhoto() {
       if (!this.photos.length) return;
-      this.activePhotoIndex =
-        (this.activePhotoIndex + 1) % this.photos.length;
+      this.activePhotoIndex = (this.activePhotoIndex + 1) % this.photos.length;
     },
 
     prevPhoto() {
       if (!this.photos.length) return;
       this.activePhotoIndex =
-        (this.activePhotoIndex - 1 + this.photos.length) %
-        this.photos.length;
+        (this.activePhotoIndex - 1 + this.photos.length) % this.photos.length;
     },
 
     setPhoto(i) {
@@ -296,20 +290,20 @@ export default {
 }
 
 .profile-page {
+  width: 100vw;
+  height: 100vh;
+  background: linear-gradient(135deg, #ff5e7e 0%, #ff1e5a 100%);
+  display: flex;
+  flex-direction: column;
+  color: #fff;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
   position: fixed;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(140deg, #ff5e7e, #ff1e5a);
-  display: flex;
-  justify-content: center;
-  align-items: center;
   overflow: hidden;
-  color: white;
-  font-family: "Inter", sans-serif;
 }
 
-/* BACK BUTTON BOVEN SCHERM */
+/* BACK BUTTON */
 .back-btn {
   position: absolute;
   left: 16px;
@@ -322,44 +316,22 @@ export default {
   color: #fff;
   font-size: 0.85rem;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 
 .back-btn:hover {
   background: rgba(0, 0, 0, 0.4);
 }
 
-/* hoofd container */
-.profile-card {
-  width: 420px;
-  padding: 26px 26px 22px;
-  border-radius: 26px;
-  background: rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(12px);
-  text-align: center;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-  animation: popIn 0.8s ease-out;
-  position: relative;
-}
-
-@keyframes popIn {
-  0% {
-    transform: scale(0.8) translateY(40px);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1) translateY(0);
-    opacity: 1;
-  }
-}
-
-/* hearts */
+/* Hearts */
 .heart-animation {
   position: absolute;
-  inset: 0;
+  bottom: -10%;
+  left: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
+  overflow: hidden;
+  z-index: 1;
 }
 
 .heart {
@@ -372,49 +344,56 @@ export default {
 
 @keyframes floatUp {
   0% {
-    transform: translateY(0);
+    transform: translateY(0) scale(0.8);
     opacity: 0;
   }
-  18% {
-    opacity: 0.85;
+  20% {
+    opacity: 0.9;
   }
   100% {
-    transform: translateY(-120vh);
+    transform: translateY(-120vh) scale(1.4);
     opacity: 0;
   }
 }
 
-/* kaart */
+/* Center zoals Home */
+.content-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px 32px;
+  min-height: 0;
+  z-index: 2;
+}
+
+/* KAART (zelfde als Home) */
 .card {
   position: relative;
-  width: 100%;
+  width: min(420px, 100%);
+  aspect-ratio: 3 / 4;
   background: #222;
   border-radius: 30px;
   overflow: hidden;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  cursor: pointer; /* click = upload */
 }
 
 .card-gradient {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 10% 0%, #ffb6c9 0, transparent 50%),
-    radial-gradient(circle at 90% 0%, #ffd1dc 0, transparent 55%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.3), #000);
+  background: radial-gradient(circle at 10% 0%, #ffb6c9 0, transparent 55%),
+    radial-gradient(circle at 90% 0%, #ffd1dc 0, transparent 60%);
   z-index: 0;
 }
 
-/* grote foto */
+/* FOTO FULLSCREEN */
 .photo-container {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  max-height: 300px;
-  overflow: hidden;
-  cursor: pointer;
+  position: absolute;
+  inset: 0;
   z-index: 1;
+  overflow: hidden;
 }
 
 .main-photo {
@@ -434,43 +413,51 @@ export default {
   background: rgba(0, 0, 0, 0.4);
 }
 
-/* nav pijlen */
+/* nav pijlen (on top) */
 .photo-nav {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border-radius: 999px;
   border: none;
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
-  font-size: 1.2rem;
+  font-size: 1.4rem;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  z-index: 3;
 }
 
 .photo-nav.left {
-  left: 10px;
+  left: 12px;
 }
 
 .photo-nav.right {
-  right: 10px;
+  right: 12px;
 }
 
-/* zwarte info balk – compact */
+/* INFO OVERLAY (Home exact) */
 .card-info {
-  position: relative;
-  padding: 14px 18px;
-  margin-top: auto;
-  z-index: 1;
-  text-align: left;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 16px 20px 14px;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.55) 35%,
+    rgba(0, 0, 0, 0.9) 100%
+  );
+  z-index: 2;
 }
 
 .name-line {
-  font-size: 1.4rem;
+  font-size: 1.6rem;
   font-weight: 800;
   letter-spacing: -0.03em;
   display: flex;
@@ -479,19 +466,19 @@ export default {
 }
 
 .age {
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   font-weight: 600;
 }
 
 .tagline {
-  margin-top: 4px;
-  font-size: 0.85rem;
+  margin-top: 6px;
+  font-size: 0.9rem;
   opacity: 0.9;
 }
 
 .info-list {
-  margin-top: 6px;
-  opacity: 0.85;
+  margin-top: 8px;
+  opacity: 0.88;
   font-size: 0.78rem;
 }
 
@@ -503,21 +490,19 @@ export default {
   margin-top: 8px;
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 6px;
 }
 
 .tag {
-  font-size: 0.7rem;
-  padding: 3px 8px;
+  font-size: 0.72rem;
+  padding: 3px 9px;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.45);
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .card-footer {
-  position: relative;
-  padding: 6px 16px 10px;
-  z-index: 1;
+  margin-top: 10px;
 }
 
 .pill {
@@ -525,15 +510,15 @@ export default {
   align-items: center;
   gap: 6px;
   font-size: 0.7rem;
-  padding: 4px 8px;
+  padding: 5px 10px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 /* dots & thumbs */
 .photo-dots {
-  margin-top: 10px;
+  margin-top: 12px;
   display: flex;
   justify-content: center;
   gap: 6px;
@@ -552,7 +537,7 @@ export default {
 }
 
 .thumbs {
-  margin-top: 8px;
+  margin-top: 10px;
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
@@ -584,7 +569,7 @@ export default {
 
 .edit-btn {
   margin-top: 18px;
-  width: 100%;
+  width: min(420px, 100%);
   padding: 11px;
   background: white;
   color: #ff1e5a;
@@ -599,5 +584,47 @@ export default {
 .edit-btn:hover {
   transform: translateY(-4px);
   box-shadow: 0 10px 25px rgba(255, 255, 255, 0.35);
+}
+
+/* ===============================
+   PAGE ENTER OVERGANG (PROFIEL)
+   =============================== */
+.page-enter-enter-active {
+  animation: pageIn 560ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+@keyframes pageIn {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+    filter: blur(7px);
+  }
+  65% {
+    opacity: 1;
+    transform: translateY(-3px) scale(1.015);
+    filter: blur(0px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0px);
+  }
+}
+
+/* subtiele extra pop van de kaart */
+.page-enter-enter-active .card {
+  animation: cardPop 680ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+@keyframes cardPop {
+  0% {
+    transform: translateY(14px) scale(0.96);
+  }
+  70% {
+    transform: translateY(-6px) scale(1.03);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
 }
 </style>

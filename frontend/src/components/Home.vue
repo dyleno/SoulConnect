@@ -576,7 +576,7 @@ export default {
   z-index: 0;
 }
 
-/* Foto */
+
 .photo-container {
   position: absolute;
   inset: 0;

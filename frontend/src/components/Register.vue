@@ -9,30 +9,21 @@
 
       <form @submit.prevent="register">
         <!-- Naam -->
-        <input
-          type="text"
-          v-model="name"
-          placeholder="Naam"
-          required
-        />
+        <input type="text" v-model="name" placeholder="Naam" required />
 
-        <!-- Leeftijd -->
+        <!-- Geboortedatum (met agenda) -->
         <input
-          type="number"
-          v-model.number="age"
-          placeholder="Leeftijd"
-          min="18"
-          max="120"
+          type="date"
+          v-model="birthdate"
           required
+          class="date-input"
+          readonly
+          @focus="openDatePicker"
+          :max="maxBirthdate"
         />
 
         <!-- Email -->
-        <input
-          type="email"
-          v-model="email"
-          placeholder="Email"
-          required
-        />
+        <input type="email" v-model="email" placeholder="Email" required />
 
         <!-- Bio -->
         <textarea
@@ -43,7 +34,7 @@
         ></textarea>
 
         <!-- Gender -->
-        <select v-model="gender" class="select">
+        <select v-model="gender" class="select" required>
           <option disabled value="">Geslacht</option>
           <option value="man">Man</option>
           <option value="vrouw">Vrouw</option>
@@ -122,7 +113,7 @@ export default {
   data() {
     return {
       name: "",
-      age: "",
+      birthdate: "", // ✅ nieuw (YYYY-MM-DD)
       email: "",
       bio: "",
       gender: "",
@@ -142,11 +133,22 @@ export default {
         "Wandelen",
         "Fotografie",
       ],
-
       errorMessage: "",
       successMessage: "",
       loading: false,
     };
+  },
+
+  computed: {
+    // ✅ max datum zodat je minimaal 18 jaar oud moet zijn
+    maxBirthdate() {
+      const d = new Date();
+      d.setFullYear(d.getFullYear() - 18);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    },
   },
 
   methods: {
@@ -156,6 +158,11 @@ export default {
       } else {
         this.interests.push(tag);
       }
+    },
+
+    openDatePicker(e) {
+      // ✅ Chrome/Edge ondersteunen showPicker()
+      if (e?.target?.showPicker) e.target.showPicker();
     },
 
     async register() {
@@ -172,7 +179,7 @@ export default {
       try {
         const response = await axios.post("http://localhost:3000/register", {
           name: this.name,
-          age: this.age,
+          birthdate: this.birthdate, // ✅ versturen naar backend
           email: this.email.trim(),
           password: this.password,
           bio: this.bio,
@@ -201,23 +208,21 @@ export default {
 </script>
 
 <style scoped>
-/* --- jouw originele styling, exact zoals je gaf --- */
 .auth-container {
   display: flex;
   justify-content: center;
-  align-items: flex-start;  /* NIEUW → kaart bovenaan beginnen */
-  padding-top: 60px;        /* afstand van boven */
-  padding-bottom: 60px;     /* voorkomt plakken onderaan */
+  align-items: flex-start;
+  padding-top: 60px;
+  padding-bottom: 60px;
   height: 100vh;
   width: 100vw;
-  overflow-y: auto;         /* SCROLL FIX */
+  overflow-y: auto;
   overflow-x: hidden;
   background: linear-gradient(135deg, #ff5e7e, #ff1e5a);
   position: fixed;
   top: 0;
   left: 0;
 }
-
 
 .top-header {
   position: absolute;
@@ -302,9 +307,12 @@ select:focus {
   border: 1px solid #ffb3c7;
   cursor: pointer;
   transition: 0.2s ease;
-   padding: 5px 10px;
+  padding: 5px 10px;
   font-size: 0.85rem;
   border-radius: 16px;
+
+  /* ✅ tekst zwart */
+  color: #000;
 }
 
 .tag-item.active {
@@ -312,6 +320,7 @@ select:focus {
   color: white;
   border-color: #ff2d56;
 }
+
 .register-text {
   margin-top: 12px;
   color: #444;
