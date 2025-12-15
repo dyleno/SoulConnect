@@ -8,6 +8,9 @@ import ChatPage from "../components/ChatPage.vue";
 import Premium from "../components/Premium.vue";
 import Settings from "../components/Settings.vue";
 
+// Make sure this file exists
+import PremiumSuccess from "../components/PremiumSuccess.vue";
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
 
@@ -46,6 +49,19 @@ const router = createRouter({
       path: "/settings",
       name: "Settings",
       component: Settings,
+    },
+
+    // Stripe success redirect route
+    {
+      path: "/premium-success",
+      name: "PremiumSuccess",
+      component: PremiumSuccess,
+    },
+
+    // Fallback redirect to home for unknown paths
+    {
+      path: "/:catchAll(.*)",
+      redirect: "/",
     },
   ],
 });

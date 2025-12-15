@@ -214,9 +214,18 @@
 </template>
 
 <script setup>
-import { reactive, ref } from "vue";
+import { reactive, ref, onMounted } from "vue";
+import axios from "axios";
 
-/* PROFILE PHOTO UPLOAD */
+/* -----------------------------
+   BASIC CONFIG
+----------------------------- */
+const USER_ID = 1; // static for now (until login system is finished)
+const API = "http://localhost:3000/api";
+
+/* -----------------------------
+   PROFILE PHOTO UPLOAD
+----------------------------- */
 const profilePhoto = ref(null);
 
 function uploadPhoto(event) {
@@ -224,37 +233,104 @@ function uploadPhoto(event) {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = e => {
+  reader.onload = (e) => {
     profilePhoto.value = e.target.result;
+    saveProfilePhoto(e.target.result);
   };
   reader.readAsDataURL(file);
 }
 
-/* EDIT STATES */
+// Drag-and-drop support
+function handleDrop(e) {
+  const file = e.dataTransfer.files[0];
+  if (file) uploadPhoto({ target: { files: [file] } });
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+}
+
+/* SAVE PROFILE PHOTO TO BACKEND */
+async function saveProfilePhoto(base64) {
+  try {
+    await axios.post(`${API}/uploadPhoto/${USER_ID}`, {
+      photo: base64,
+    });
+  } catch (err) {
+    console.error("Photo upload failed:", err);
+  }
+}
+
+/* LOAD PROFILE PHOTO */
+async function loadProfilePhoto() {
+  try {
+    const res = await axios.get(`${API}/getPhoto/${USER_ID}`);
+    if (res.data?.photo) {
+      profilePhoto.value = res.data.photo;
+    }
+  } catch (err) {
+    console.error("Failed to load photo:", err);
+  }
+}
+
+/* -----------------------------
+   EDIT STATES
+----------------------------- */
 const editingPersonal = ref(false);
 const editingPreferences = ref(false);
 
-/* USER DATA */
+/* -----------------------------
+   USER DATA (LIVE)
+----------------------------- */
 const personal = reactive({
-  gender: "Man",
-  age: 19,
-  interests: "Reizen, Kickboksen, Koken",
-  job: "Personal trainer",
-  location: "Groningen"
+  gender: "",
+  age: "",
+  interests: "",
+  job: "",
+  location: "",
 });
 
 const preferences = reactive({
-  gender: "Vrouw",
-  ageRange: "18 / 25",
-  interests: "Sporten, Reizen",
-  distance: "25km"
+  gender: "",
+  ageRange: "",
+  interests: "",
+  distance: "",
 });
 
-/* TEMP COPIES FOR EDITING */
+/* TEMPORARY EDIT MODEL */
 const tempPersonal = reactive({});
 const tempPreferences = reactive({});
 
-/* EDIT ACTIONS */
+/* -----------------------------
+   LOAD SAVED DATA (ON PAGE OPEN)
+----------------------------- */
+async function loadPersonal() {
+  try {
+    const res = await axios.get(`${API}/getPersonal/${USER_ID}`);
+    Object.assign(personal, res.data);
+  } catch (err) {
+    console.error("Failed to load personal:", err);
+  }
+}
+
+async function loadPreferences() {
+  try {
+    const res = await axios.get(`${API}/getPreferences/${USER_ID}`);
+    Object.assign(preferences, res.data);
+  } catch (err) {
+    console.error("Failed to load preferences:", err);
+  }
+}
+
+onMounted(() => {
+  loadPersonal();
+  loadPreferences();
+  loadProfilePhoto();
+});
+
+/* -----------------------------
+   START EDITING
+----------------------------- */
 function startEditPersonal() {
   Object.assign(tempPersonal, personal);
   editingPersonal.value = true;
@@ -265,25 +341,41 @@ function startEditPreferences() {
   editingPreferences.value = true;
 }
 
-/* SAVE + CANCEL */
-function savePersonal() {
-  Object.assign(personal, tempPersonal);
-  editingPersonal.value = false;
+/* -----------------------------
+   SAVE TO BACKEND
+----------------------------- */
+async function savePersonal() {
+  try {
+    await axios.post(`${API}/updatePersonal/${USER_ID}`, tempPersonal);
+    Object.assign(personal, tempPersonal);
+    editingPersonal.value = false;
+  } catch (err) {
+    console.error("Failed to save:", err);
+  }
 }
 
+async function savePreferences() {
+  try {
+    await axios.post(`${API}/updatePreferences/${USER_ID}`, tempPreferences);
+    Object.assign(preferences, tempPreferences);
+    editingPreferences.value = false;
+  } catch (err) {
+    console.error("Failed to save:", err);
+  }
+}
+
+/* -----------------------------
+   CANCEL EDITING
+----------------------------- */
 function cancelPersonal() {
   editingPersonal.value = false;
-}
-
-function savePreferences() {
-  Object.assign(preferences, tempPreferences);
-  editingPreferences.value = false;
 }
 
 function cancelPreferences() {
   editingPreferences.value = false;
 }
 </script>
+
 
 <style scoped>
 

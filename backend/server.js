@@ -3,18 +3,49 @@ import express from "express";
 import cors from "cors";
 import bcrypt from "bcrypt";
 import pool from "./db.js";
+import dotenv from "dotenv";
+import Stripe from "stripe";
+
+dotenv.config();
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-app.use(cors());
-app.use(express.json());
+// -------------------- GLOBAL LOGGER --------------------
+app.use((req, res, next) => {
+  console.log(`➡️ Incoming request: ${req.method} ${req.url}`);
+  console.log("Headers:", req.headers);
+  next();
+});
 
-// Test route
+// -------------------- CORS --------------------
+app.use(
+  cors({
+    origin: ["http://localhost:5173", "http://localhost:5174"],
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type"],
+  })
+);
+
+// handle preflight
+app.options("*", cors());
+
+app.use(express.json({ limit: "10mb" })); // for JSON payloads
+
+// -------------------- STRIPE SETUP --------------------
+if (!process.env.STRIPE_SECRET_KEY) {
+  console.error(
+    "⚠️ Stripe secret key missing! Please check your .env file."
+  );
+}
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+// -------------------- TEST ROUTE --------------------
 app.get("/", (req, res) => {
   res.json({ message: "Backend werkt!" });
 });
 
-//  Registreren
+// -------------------- REGISTER --------------------
 app.post("/register", async (req, res) => {
   const { name, age, email, password } = req.body;
 
@@ -41,12 +72,10 @@ app.post("/register", async (req, res) => {
       });
     }
 
-    // Bestaat email al?
     const [existing] = await pool.query(
       "SELECT id FROM users WHERE email = ?",
       [email]
     );
-
     if (existing.length > 0) {
       return res.status(400).json({
         success: false,
@@ -54,25 +83,19 @@ app.post("/register", async (req, res) => {
       });
     }
 
-    // Wachtwoord hashen
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Nieuwe user invoegen
     const [userResult] = await pool.query(
       "INSERT INTO users (email, password) VALUES (?, ?)",
       [email, hashedPassword]
     );
 
     const newUserId = userResult.insertId;
+    const birthYear = new Date().getFullYear() - ageNumber;
+    const birthdate = `${birthYear}-01-01`;
 
-    // Leeftijd omzetten naar een birthdate (bijv. 1 januari van dat jaar)
-    const now = new Date();
-    const birthYear = now.getFullYear() - ageNumber;
-    const birthdate = `${birthYear}-01-01`; // simpel placeholder
-
-    // Profiel aanmaken
     await pool.query(
-      "INSERT INTO profiles (user_id, name, birthdate) VALUES (?, ?, ?)",
+      "INSERT INTO profiles (user_id, name, birthdate, is_premium) VALUES (?, ?, ?, 0)",
       [newUserId, name, birthdate]
     );
 
@@ -95,7 +118,7 @@ app.post("/register", async (req, res) => {
   }
 });
 
-// 🔐 Inloggen
+// -------------------- LOGIN --------------------
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -120,8 +143,8 @@ app.post("/login", async (req, res) => {
     }
 
     const user = rows[0];
-
     const isMatch = await bcrypt.compare(password, user.password);
+
     if (!isMatch) {
       return res.status(401).json({
         success: false,
@@ -146,6 +169,48 @@ app.post("/login", async (req, res) => {
   }
 });
 
-app.listen(3000, () => {
-  console.log("Server draait op http://localhost:3000");
+// -------------------- STRIPE CHECKOUT --------------------
+app.post("/api/create-checkout-session", async (req, res) => {
+  console.log("🔥 Received checkout session request:", req.body);
+
+  try {
+    console.log(
+      "Stripe key loaded:",
+      process.env.STRIPE_SECRET_KEY?.startsWith("sk_")
+    );
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      mode: "payment",
+      line_items: [
+        {
+          price_data: {
+            currency: "eur",
+            product_data: { name: "SoulConnect Premium" },
+            unit_amount: 799, // €7,99
+          },
+          quantity: 1,
+        },
+      ],
+      // ⚠ Make sure these match your frontend dev server
+      success_url: "http://localhost:5174/premium-success",
+      cancel_url: "http://localhost:5174/premium-cancel",
+    });
+
+    console.log("Stripe session created:", session.id);
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error("▶ FULL Stripe error object:", err);
+    if (err.raw) console.error("▶ Stripe raw error:", err.raw);
+
+    res.status(500).json({
+      error: "Stripe session failed",
+      message: err.message,
+    });
+  }
+});
+
+// -------------------- START SERVER --------------------
+app.listen(PORT, () => {
+  console.log(`Server draait op http://localhost:${PORT}`);
 });

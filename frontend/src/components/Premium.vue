@@ -10,16 +10,14 @@
     </div>
 
     <div class="app-shell">
-      <!-- SAME SIDEBAR AS HOME -->
+      <!-- SIDEBAR -->
       <aside class="sidebar">
         <div class="sidebar-user">
           <div class="sidebar-avatar">
-            <span class="sidebar-avatar-initial">
-              {{ avatarInitial }}
-            </span>
+            <span class="sidebar-avatar-initial">{{ avatarInitial }}</span>
           </div>
           <div class="sidebar-user-text">
-            <div class="sidebar-user-name">Gebruiker</div>
+            <div class="sidebar-user-name">{{ displayName }}</div>
             <button class="sidebar-link">Bekijk profiel</button>
           </div>
         </div>
@@ -29,22 +27,18 @@
             <span class="nav-icon">♡</span>
             <span>Home</span>
           </button>
-
           <button class="nav-item" @click="$router.push('/chat')">
             <span class="nav-icon">💬</span>
             <span>Berichten</span>
           </button>
-
-          <button class="nav-item">
+          <button class="nav-item" @click="$router.push('/search')">
             <span class="nav-icon">🔍</span>
             <span>Zoeken</span>
           </button>
-
-          <button class="nav-item">
+          <button class="nav-item" @click="$router.push('/settings')">
             <span class="nav-icon">⚙️</span>
             <span>Instellingen</span>
           </button>
-
           <button class="nav-item active" @click="$router.push('/premium')">
             <span class="nav-icon">★</span>
             <span>Premium</span>
@@ -63,7 +57,6 @@
         </header>
 
         <section class="content-main">
-
           <div class="premium-card">
             <div class="price-tag">€7,99/m</div>
 
@@ -74,12 +67,10 @@
               <li>Premium badge</li>
             </ul>
 
-            <button class="buy-btn">
-              Activeer Premium
+            <button class="buy-btn" @click="startCheckout" :disabled="loading">
+              {{ loading ? "Bezig..." : "Activeer Premium" }}
             </button>
-
           </div>
-
         </section>
       </main>
     </div>
@@ -87,34 +78,87 @@
 </template>
 
 <script>
+import { loadStripe } from "@stripe/stripe-js";
+
 export default {
   name: "Premium",
   data() {
     return {
       user: JSON.parse(localStorage.getItem("user")) || null,
+      loading: false,
     };
   },
   computed: {
     displayName() {
-      if (!this.user) return "Bella";
-      return this.user.name || this.user.email?.split("@")[0] || "Bella";
+      if (!this.user) return "Gebruiker";
+      return this.user.name || this.user.email?.split("@")[0] || "Gebruiker";
     },
     avatarInitial() {
-      const n = this.displayName;
-      return n ? n.charAt(0).toUpperCase() : "S";
+      return this.displayName.charAt(0).toUpperCase();
     },
   },
   methods: {
     logout() {
       localStorage.removeItem("user");
+      localStorage.removeItem("isPremium");
       this.$router.push("/login");
+    },
+
+    async startCheckout() {
+      if (!this.user) {
+        alert("Je moet ingelogd zijn.");
+        return;
+      }
+
+      const stripeKey = import.meta.env.VITE_STRIPE_PUBLIC_KEY;
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
+
+      console.log("✨ Starting checkout...");
+      console.log("Stripe Key:", stripeKey);
+      console.log("Backend URL:", backendUrl);
+      console.log("Sending userId:", this.user.id);
+
+      if (!stripeKey) {
+        alert("Stripe public key ontbreekt!");
+        console.error("VITE_STRIPE_PUBLIC_KEY is undefined.");
+        return;
+      }
+
+      this.loading = true;
+
+      try {
+        // Call backend to create checkout session
+        const res = await fetch(`${backendUrl}/api/create-checkout-session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: this.user.id }),
+        });
+
+        console.log("Backend status:", res.status);
+
+        const data = await res.json();
+
+        if (!res.ok || !data.url) {
+          throw new Error(`Backend error: ${res.status} ${JSON.stringify(data)}`);
+        }
+
+        console.log("Redirecting to Stripe Checkout:", data.url);
+
+        // Redirect the browser to the Stripe Checkout page
+        window.location.href = data.url;
+      } catch (err) {
+        console.error("Stripe checkout error:", err);
+        alert("Er ging iets mis met betalen.");
+      } finally {
+        this.loading = false;
+      }
     },
   },
 };
 </script>
-
+  
 <style scoped>
-/* COPY EXACT SAME STYLING FROM HOME PAGE */
+/* SAME STYLING AS BEFORE */
 :global(html, body, #app) {
   margin: 0;
   padding: 0;
@@ -162,7 +206,6 @@ export default {
   100% { transform: translateY(-120vh) scale(1.4); opacity: 0; }
 }
 
-/* Layout identical */
 .app-shell {
   flex: 1;
   display: flex;
@@ -256,7 +299,6 @@ export default {
   justify-content: center;
 }
 
-/* Premium card styling */
 .premium-card {
   background: white;
   width: 360px;

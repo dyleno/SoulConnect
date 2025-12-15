@@ -14,7 +14,9 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "@stripe/stripe-js": "^8.5.3",
     "axios": "^1.13.2",
+    "js-confetti": "^0.13.1",
     "vue": "^3.5.22",
     "vue-router": "^4.6.3"
   },
