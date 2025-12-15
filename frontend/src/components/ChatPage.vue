@@ -14,9 +14,16 @@
       <aside class="sidebar">
         <div class="sidebar-user">
           <div class="sidebar-avatar">
-            <span class="sidebar-avatar-initial">
+            <!-- FOTO ALS DIE BESTAAT, ANDERS INITIAAL -->
+            <span class="sidebar-avatar-initial" v-if="!photoUrl">
               {{ avatarInitial }}
             </span>
+            <img
+              v-else
+              :src="photoUrl"
+              alt="Profielfoto"
+              class="sidebar-avatar-image"
+            />
           </div>
           <div class="sidebar-user-text">
             <div class="sidebar-user-name">{{ sidebarName }}</div>
@@ -74,8 +81,17 @@
               :class="{ selected: activeMatch && m.id === activeMatch.id }"
               @click="selectMatch(m)"
             >
-              <div class="match-avatar">
-                {{ m.profile.name.charAt(0).toUpperCase() }}
+              <div class="match-avatar" @click.stop="openProfileCard(m.profile)">
+                <!-- FOTO VAN ANDER PROFIEL OF INITIAAL -->
+                <img
+                  v-if="m.profile.photoUrl"
+                  :src="m.profile.photoUrl"
+                  alt="Profielfoto"
+                  class="match-avatar-img"
+                />
+                <span v-else>
+                  {{ m.profile.name.charAt(0).toUpperCase() }}
+                </span>
               </div>
               <div class="match-info">
                 <div class="match-name">
@@ -97,8 +113,20 @@
           <div class="chat-window">
             <template v-if="activeMatch">
               <div class="chat-header">
-                <div class="chat-avatar">
-                  {{ activeMatch.profile.name.charAt(0).toUpperCase() }}
+                <div
+                  class="chat-avatar"
+                  @click="openProfileCard(activeMatch.profile)"
+                >
+                  <!-- FOTO VAN ANDER PROFIEL OF INITIAAL -->
+                  <img
+                    v-if="activeMatch.profile.photoUrl"
+                    :src="activeMatch.profile.photoUrl"
+                    alt="Profielfoto"
+                    class="chat-avatar-img"
+                  />
+                  <span v-else>
+                    {{ activeMatch.profile.name.charAt(0).toUpperCase() }}
+                  </span>
                 </div>
                 <div class="chat-user">
                   <div class="chat-name">
@@ -120,7 +148,8 @@
                 </button>
               </div>
 
-              <div class="messages">
+              <!-- MESSAGES -->
+              <div class="messages" ref="messagesContainer">
                 <div
                   v-for="msg in activeMatch.messages"
                   :key="msg.id"
@@ -155,11 +184,71 @@
         </div>
       </main>
     </div>
+
+    <!-- PROFIEL-KAART MODAL -->
+    <transition name="modal-fade">
+      <div
+        v-if="showProfileCard && modalProfile"
+        class="profile-modal"
+        @click.self="closeProfileCard"
+      >
+        <div class="profile-card-zoom">
+          <button class="profile-close" @click="closeProfileCard">
+            ✕
+          </button>
+
+          <div class="profile-card-inner">
+            <!-- Foto -->
+            <div class="profile-photo-container">
+              <img
+                v-if="modalProfile.photoUrl"
+                :src="modalProfile.photoUrl"
+                alt="Profielfoto"
+                class="profile-main-photo"
+              />
+              <div v-else class="profile-photo-fallback">
+                {{ modalProfile.name.charAt(0).toUpperCase() }}
+              </div>
+            </div>
+
+            <!-- Info overlay -->
+            <div class="profile-info">
+              <h2 class="profile-name-line">
+                {{ modalProfile.name }}
+                <span class="profile-age">{{ modalProfile.age }}</span>
+              </h2>
+
+              <p class="profile-tagline">
+                {{ modalTagline }}
+              </p>
+
+              <div class="profile-tags" v-if="modalTags.length">
+                <span
+                  v-for="tag in modalTags"
+                  :key="tag"
+                  class="profile-tag"
+                >
+                  {{ tag }}
+                </span>
+              </div>
+
+              <div class="profile-extra">
+                <span v-if="modalProfile.location">📍 {{ modalProfile.location }}</span>
+                <span v-if="modalProfile.gender">⚧ {{ modalProfile.gender }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </transition>
   </section>
 </template>
 
 <script>
 import axios from "axios";
+import { io } from "socket.io-client";
+
+const API_BASE = "http://localhost:3000";
 
 export default {
   name: "ChatPage",
@@ -169,6 +258,10 @@ export default {
       newMessage: "",
       matches: [], // [{ id, profile: {...}, messages: [...] }]
       activeMatch: null,
+      photoUrl: "", // profielfoto in sidebar
+      showProfileCard: false,
+      modalProfile: null,
+      socket: null, // <== Socket.IO client
     };
   },
   computed: {
@@ -187,6 +280,22 @@ export default {
       const n = this.sidebarName;
       return n ? n.charAt(0).toUpperCase() : "G";
     },
+    modalTagline() {
+      if (!this.modalProfile) return "";
+      return this.modalProfile.bio || "Nog geen bio ingevuld.";
+    },
+    modalTags() {
+      if (!this.modalProfile) return [];
+      const ints = this.modalProfile.tags || this.modalProfile.interests;
+      if (Array.isArray(ints)) return ints;
+      if (typeof ints === "string") {
+        return ints
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean);
+      }
+      return [];
+    },
   },
   async mounted() {
     if (!this.user) {
@@ -197,19 +306,65 @@ export default {
       console.error("Geen profile_id gevonden voor user");
       return;
     }
-    await this.fetchMatches();
+
+    // socket connect
+    this.socket = io(API_BASE);
+
+    this.socket.on("connect", () => {
+      console.log("Socket connected", this.socket.id);
+    });
+
+    // nieuwe messages realtime ontvangen
+    this.socket.on("message_created", (msg) => {
+      const match = this.matches.find((m) => m.id === msg.match_id);
+      if (!match) return;
+
+      match.messages.push({
+        id: msg.id,
+        text: msg.content,
+        time: msg.created_at,
+        from: msg.sender_id === this.myProfileId ? "me" : "them",
+      });
+
+      if (this.activeMatch && this.activeMatch.id === msg.match_id) {
+        this.$nextTick(() => this.scrollToBottom());
+      }
+    });
+
+    this.socket.on("message_error", (err) => {
+      console.error("Socket message error", err);
+    });
+
+    // Matches én eigen foto ophalen
+    await Promise.all([this.fetchMatches(), this.loadPhoto()]);
+  },
+  beforeUnmount() {
+    if (this.socket) {
+      this.socket.disconnect();
+    }
   },
   methods: {
     async fetchMatches() {
       try {
-        const res = await axios.get("http://localhost:3000/api/matches", {
+        const res = await axios.get(`${API_BASE}/api/matches`, {
           params: { profile_id: this.myProfileId },
         });
 
-        // Backend geeft: [{ id, profile: {...}, messages: [...] }]
-        this.matches = res.data.map((m) => ({
+        const baseMatches = res.data.map((m) => ({
           id: m.id,
-          profile: m.profile,
+          profile: {
+            ...m.profile,
+            tags:
+              Array.isArray(m.profile.interests) ||
+              m.profile.interests instanceof Array
+                ? m.profile.interests
+                : typeof m.profile.interests === "string"
+                ? m.profile.interests
+                    .split(",")
+                    .map((t) => t.trim())
+                    .filter(Boolean)
+                : [],
+          },
           messages: (m.messages || []).map((msg) => ({
             id: msg.id,
             text: msg.content,
@@ -218,16 +373,71 @@ export default {
           })),
         }));
 
+        const matchesWithPhotos = await Promise.all(
+          baseMatches.map(async (m) => {
+            try {
+              const photoRes = await axios.get(
+                `${API_BASE}/api/photos/${m.profile.id}`
+              );
+              const data = photoRes.data;
+              if (data && data.image_url) {
+                m.profile.photoUrl = API_BASE + data.image_url;
+              } else {
+                m.profile.photoUrl = null;
+              }
+            } catch (e) {
+              console.warn("Geen foto voor match-profiel", m.profile.id);
+              m.profile.photoUrl = null;
+            }
+            return m;
+          })
+        );
+
+        this.matches = matchesWithPhotos;
+
         if (this.matches.length > 0) {
           this.activeMatch = this.matches[0];
+
+          // join room voor eerste match
+          if (this.socket && this.activeMatch) {
+            this.socket.emit("join_match", this.activeMatch.id);
+          }
+
+          this.$nextTick(() => this.scrollToBottom());
         }
       } catch (err) {
         console.error("Kon matches niet ophalen", err);
       }
     },
 
+    async loadPhoto() {
+      if (!this.user?.profile_id) return;
+
+      try {
+        const photoRes = await axios.get(
+          `${API_BASE}/api/photos/${this.user.profile_id}`
+        );
+        const data = photoRes.data;
+        if (data && data.image_url) {
+          this.photoUrl = API_BASE + data.image_url;
+        }
+      } catch (e) {
+        console.warn("Geen foto gevonden voor dit profiel");
+      }
+    },
+
     selectMatch(m) {
+      if (this.socket && this.activeMatch) {
+        this.socket.emit("leave_match", this.activeMatch.id);
+      }
+
       this.activeMatch = m;
+
+      if (this.socket && this.activeMatch) {
+        this.socket.emit("join_match", this.activeMatch.id);
+      }
+
+      this.$nextTick(() => this.scrollToBottom());
     },
 
     async sendMessage() {
@@ -235,28 +445,20 @@ export default {
         return;
       }
 
-      const text = this.newMessage.trim();
+      const payload = {
+        match_id: this.activeMatch.id,
+        sender_id: this.myProfileId,
+        content: this.newMessage.trim(),
+      };
 
-      try {
-        const res = await axios.post("http://localhost:3000/api/messages", {
-          match_id: this.activeMatch.id,
-          sender_id: this.myProfileId,
-          content: text,
-        });
-
-        const msgFromServer = res.data; // { id, match_id, sender_id, content, created_at }
-
-        this.activeMatch.messages.push({
-          id: msgFromServer.id,
-          text: msgFromServer.content,
-          time: msgFromServer.created_at,
-          from: "me",
-        });
-
-        this.newMessage = "";
-      } catch (err) {
-        console.error("Kon bericht niet versturen", err);
+      if (this.socket && this.socket.connected) {
+        this.socket.emit("send_message", payload);
+      } else {
+        console.warn("Socket niet verbonden, kan bericht niet realtime sturen");
       }
+
+      this.newMessage = "";
+      // server stuurt het bericht terug via "message_created"
     },
 
     async deleteConversation(match) {
@@ -271,13 +473,21 @@ export default {
       }
 
       try {
-        await axios.delete(
-          `http://localhost:3000/api/matches/${match.id}`
-        );
+        await axios.delete(`${API_BASE}/api/matches/${match.id}`);
+
+        if (this.socket) {
+          this.socket.emit("leave_match", match.id);
+        }
 
         this.matches = this.matches.filter((m) => m.id !== match.id);
         if (this.activeMatch?.id === match.id) {
           this.activeMatch = this.matches[0] || null;
+
+          if (this.activeMatch && this.socket) {
+            this.socket.emit("join_match", this.activeMatch.id);
+          }
+
+          this.$nextTick(() => this.scrollToBottom());
         }
       } catch (err) {
         console.error("Kon match niet verwijderen", err);
@@ -308,6 +518,23 @@ export default {
       return `${h}:${m}`;
     },
 
+    scrollToBottom() {
+      const el = this.$refs.messagesContainer;
+      if (!el) return;
+      el.scrollTop = el.scrollHeight;
+    },
+
+    openProfileCard(profile) {
+      if (!profile) return;
+      this.modalProfile = profile;
+      this.showProfileCard = true;
+    },
+
+    closeProfileCard() {
+      this.showProfileCard = false;
+      this.modalProfile = null;
+    },
+
     logout() {
       localStorage.removeItem("user");
       this.$router.push("/login");
@@ -315,6 +542,9 @@ export default {
   },
 };
 </script>
+
+
+
 
 <style scoped>
 /* Zelfde global reset */
@@ -410,11 +640,19 @@ export default {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.25);
+  overflow: hidden;
 }
 
 .sidebar-avatar-initial {
   font-weight: 700;
   font-size: 1.1rem;
+}
+
+/* FOTO in sidebar */
+.sidebar-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .sidebar-user-text {
@@ -547,6 +785,15 @@ export default {
   justify-content: center;
   font-weight: 700;
   font-size: 1.1rem;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+/* FOTO bij match */
+.match-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .match-info {
@@ -587,6 +834,15 @@ export default {
   font-size: 1.3rem;
   font-weight: 700;
   margin-right: 10px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+/* FOTO in chat header */
+.chat-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .delete-chat-btn {
@@ -602,6 +858,7 @@ export default {
   color: #ffd1dc;
 }
 
+/* Messages – invisible scrollbar + smooth */
 .messages {
   flex: 1;
   padding: 20px;
@@ -610,6 +867,12 @@ export default {
   flex-direction: column;
   gap: 12px;
   background: linear-gradient(135deg, #ff5e7e 0%, #ff1e5a 100%);
+  scrollbar-width: none; /* Firefox */
+  scroll-behavior: smooth;
+}
+
+.messages::-webkit-scrollbar {
+  display: none; /* Chrome / Edge / Safari */
 }
 
 .message {
@@ -661,6 +924,158 @@ input {
   padding: 10px 14px;
   border-radius: 50%;
   cursor: pointer;
+}
+
+/* PROFIEL MODAL */
+.profile-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 50;
+}
+
+.profile-card-zoom {
+  width: min(420px, 100% - 32px);
+  aspect-ratio: 3 / 4;
+  border-radius: 30px;
+  background: #000;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.7);
+}
+
+.profile-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* close button */
+.profile-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  z-index: 3;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+/* foto */
+.profile-photo-container {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.profile-main-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-photo-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  font-weight: 900;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* info overlay */
+.profile-info {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 18px 20px 20px;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.55) 35%,
+    rgba(0, 0, 0, 0.95) 100%
+  );
+  z-index: 2;
+}
+
+.profile-name-line {
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.profile-age {
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.profile-tagline {
+  margin-top: 6px;
+  font-size: 0.95rem;
+  opacity: 0.95;
+}
+
+.profile-tags {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.profile-tag {
+  font-size: 0.78rem;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.profile-extra {
+  margin-top: 10px;
+  font-size: 0.8rem;
+  opacity: 0.9;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* modal animatie */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+
+.modal-fade-enter-active .profile-card-zoom,
+.modal-fade-leave-active .profile-card-zoom {
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.modal-fade-enter-from .profile-card-zoom {
+  transform: translateY(20px) scale(0.92);
+  opacity: 0.6;
+}
+
+.modal-fade-leave-to .profile-card-zoom {
+  transform: translateY(10px) scale(0.95);
+  opacity: 0.7;
 }
 
 /* Responsive gedrag zoals Home.vue */
